@@ -3,7 +3,7 @@ import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, Mail, Lock, Eye, EyeOff } from "lucide-react";
+import { Mail, Lock, Eye, EyeOff, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 export default function Signup() {
@@ -11,59 +11,46 @@ export default function Signup() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
   const { toast } = useToast();
 
-  const handleSignup = async () => {
+  const handleSignup = async (e: React.FormEvent) => {
+    e.preventDefault();
     if (!email || !password || !confirmPassword) {
       toast({ title: "Error", description: "Please fill all fields", variant: "destructive" });
       return;
     }
 
-    if (password.length < 8) {
-      toast({
-        title: "Error",
-        description: "Password must be at least 8 characters",
-        variant: "destructive",
-      });
+    if (password !== confirmPassword) {
+      toast({ title: "Error", description: "Passwords don't match", variant: "destructive" });
       return;
     }
 
-    if (password !== confirmPassword) {
-      toast({
-        title: "Error",
-        description: "Passwords do not match",
-        variant: "destructive",
-      });
+    if (password.length < 6) {
+      toast({ title: "Error", description: "Password must be at least 6 characters", variant: "destructive" });
       return;
     }
 
     setLoading(true);
     try {
-      const res = await fetch("/api/auth/signup-jwt", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.message || "Signup failed");
+      const users = JSON.parse(localStorage.getItem("users") || "[]");
+      
+      if (users.find((u: any) => u.email === email)) {
+        toast({ title: "Error", description: "Email already registered", variant: "destructive" });
+        setLoading(false);
+        return;
       }
 
-      localStorage.setItem("authToken", data.token);
+      const newUser = { email, password, id: Math.random().toString(36).substr(2, 9) };
+      users.push(newUser);
+      localStorage.setItem("users", JSON.stringify(users));
+      localStorage.setItem("currentUser", JSON.stringify(newUser));
+
       toast({ title: "Success", description: "Account created successfully!" });
       navigate("/dashboard");
     } catch (err) {
-      toast({
-        title: "Error",
-        description: err instanceof Error ? err.message : "Signup failed",
-        variant: "destructive",
-      });
-    } finally {
+      toast({ title: "Error", description: "Signup failed", variant: "destructive" });
       setLoading(false);
     }
   };
@@ -73,83 +60,77 @@ export default function Signup() {
       <Card className="w-full max-w-md glass-panel border-white/10">
         <CardHeader>
           <CardTitle className="text-2xl font-heading">Create Account</CardTitle>
-          <p className="text-sm text-muted-foreground mt-2">Join the Eco-Cyberpunk dApp</p>
+          <p className="text-sm text-muted-foreground mt-2">Join now</p>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <label className="text-xs font-medium text-muted-foreground">Email</label>
-            <div className="relative">
-              <Input
-                type="email"
-                placeholder="your@email.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                disabled={loading}
-                className="bg-black/20 border-white/10 pl-10"
-                data-testid="input-signup-email"
-              />
-              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-primary" />
+        <CardContent>
+          <form onSubmit={handleSignup} className="space-y-4">
+            <div className="space-y-2">
+              <label className="text-xs font-medium text-muted-foreground">Email</label>
+              <div className="relative">
+                <Input
+                  type="email"
+                  placeholder="your@email.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  disabled={loading}
+                  className="bg-black/20 border-white/10 pl-10"
+                  data-testid="input-signup-email"
+                />
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-primary" />
+              </div>
             </div>
-          </div>
 
-          <div className="space-y-2">
-            <label className="text-xs font-medium text-muted-foreground">Password</label>
-            <div className="relative">
-              <Input
-                type={showPassword ? "text" : "password"}
-                placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                disabled={loading}
-                className="bg-black/20 border-white/10 pl-10 pr-10"
-                data-testid="input-password"
-              />
-              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-primary" />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-primary"
-              >
-                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              </button>
+            <div className="space-y-2">
+              <label className="text-xs font-medium text-muted-foreground">Password</label>
+              <div className="relative">
+                <Input
+                  type={showPassword ? "text" : "password"}
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  disabled={loading}
+                  className="bg-black/20 border-white/10 pl-10 pr-10"
+                  data-testid="input-password"
+                />
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-primary" />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-primary"
+                >
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
             </div>
-          </div>
 
-          <div className="space-y-2">
-            <label className="text-xs font-medium text-muted-foreground">Confirm Password</label>
-            <div className="relative">
-              <Input
-                type={showConfirmPassword ? "text" : "password"}
-                placeholder="••••••••"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                disabled={loading}
-                className="bg-black/20 border-white/10 pl-10 pr-10"
-                data-testid="input-confirm-password"
-              />
-              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-primary" />
-              <button
-                type="button"
-                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-primary"
-              >
-                {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              </button>
+            <div className="space-y-2">
+              <label className="text-xs font-medium text-muted-foreground">Confirm Password</label>
+              <div className="relative">
+                <Input
+                  type={showPassword ? "text" : "password"}
+                  placeholder="••••••••"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  disabled={loading}
+                  className="bg-black/20 border-white/10 pl-10"
+                  data-testid="input-confirm-password"
+                />
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-primary" />
+              </div>
             </div>
-            <p className="text-xs text-muted-foreground">Min 8 characters</p>
-          </div>
 
-          <Button
-            onClick={handleSignup}
-            disabled={loading || !email || !password || !confirmPassword}
-            className="w-full bg-primary hover:bg-primary/90"
-            data-testid="button-signup"
-          >
-            {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-            Create Account
-          </Button>
+            <Button
+              type="submit"
+              disabled={loading}
+              className="w-full bg-primary hover:bg-primary/90"
+              data-testid="button-signup"
+            >
+              {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Create Account
+            </Button>
+          </form>
 
-          <div className="relative">
+          <div className="relative my-6">
             <div className="absolute inset-0 flex items-center">
               <div className="w-full border-t border-white/10"></div>
             </div>
