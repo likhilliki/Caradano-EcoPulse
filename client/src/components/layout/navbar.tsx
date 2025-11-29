@@ -1,14 +1,29 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Wallet, Menu, X, ShieldCheck } from "lucide-react";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { WalletModal } from "@/components/dashboard/wallet-modal";
+import { WalletService } from "@/lib/cardano-wallet";
 
 export function Navbar() {
   const [location] = useLocation();
   const [isWalletOpen, setIsWalletOpen] = useState(false);
   const [connectedAddress, setConnectedAddress] = useState<string | null>(null);
+
+  // Check if wallet is already connected on mount
+  useEffect(() => {
+    const checkWallet = async () => {
+      const walletService = WalletService.getInstance();
+      if (walletService.isConnected()) {
+        const address = await walletService.getAddress();
+        if (address) {
+          setConnectedAddress(address);
+        }
+      }
+    };
+    checkWallet();
+  }, []);
 
   const handleConnect = () => {
     if (!connectedAddress) {

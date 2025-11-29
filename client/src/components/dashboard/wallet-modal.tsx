@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Loader2, CheckCircle2, AlertCircle } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
+import { WalletService } from "@/lib/cardano-wallet";
 
 interface WalletModalProps {
   open: boolean;
@@ -29,48 +30,42 @@ export function WalletModal({ open, onOpenChange, onConnect }: WalletModalProps)
     try {
       // Check if Eternl extension exists
       if (!window.cardano || !window.cardano.eternl) {
-        throw new Error("Eternl wallet not found. Please install the Eternl extension.");
+        throw new Error("Eternl wallet not found. Please install the Eternl extension from https://eternl.io");
       }
 
-      // Request wallet access - this triggers the Eternl popup
-      console.log("Requesting Eternl wallet access...");
-      const walletApi = await window.cardano.eternl.enable();
-      console.log("Eternl wallet enabled");
+      console.log("=== Triggering Eternl Wallet Connection ===");
+      
+      // Use WalletService to connect - this will trigger the Eternl popup
+      const walletService = WalletService.getInstance();
+      const address = await walletService.connectWallet();
+      
+      console.log("✓ Wallet connected successfully:", address);
+      
+      setStatus('connected');
+      onConnect(address);
+      
+      toast({
+        title: "Wallet Connected",
+        description: "Successfully connected to Eternl wallet.",
+      });
 
-      // Get addresses
-      let addresses = null;
-      try {
-        addresses = await walletApi.getUsedAddresses();
-      } catch {
-        addresses = await walletApi.getUnusedAddresses();
-      }
-
-      if (!addresses || addresses.length === 0) {
-        try {
-          const changeAddr = await walletApi.getChangeAddress();
-          addresses = [changeAddr];
-        } catch {
-          throw new Error("No addresses found in wallet");
-        }
-      }
-
-      if (addresses && addresses.length > 0) {
-        setStatus('connected');
-        onConnect(addresses[0]);
-        
-        toast({
-          title: "Wallet Connected",
-          description: "Successfully connected to Eternl.",
-        });
-
-        setTimeout(() => {
-          onOpenChange(false);
-        }, 500);
-      }
+      setTimeout(() => {
+        onOpenChange(false);
+      }, 500);
     } catch (error: any) {
-      console.error("Failed to connect wallet:", error?.message || error?.info || error);
+      console.error("Failed to connect wallet:", error);
       setStatus('error');
-      const msg = error?.info || error?.message || "Unknown error occurred";
+      
+      // Handle different error types
+      let msg = "Failed to connect wallet";
+      if (error?.message) {
+        msg = error.message;
+      } else if (error?.info) {
+        msg = error.info;
+      } else if (error?.code === -3) {
+        msg = "Connection rejected by user";
+      }
+      
       setErrorMsg(msg);
       
       toast({
