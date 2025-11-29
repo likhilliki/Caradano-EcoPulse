@@ -24,6 +24,13 @@ export function WalletModal({ open, onOpenChange, onConnect }: WalletModalProps)
       setErrorMsg("");
       setBalance(null);
       setAddress("");
+      
+      // Log wallet availability
+      if (window.cardano?.eternl) {
+        console.log("[MODAL] ✓ Eternl detected");
+      } else {
+        console.log("[MODAL] ✗ Eternl NOT detected");
+      }
     }
   }, [open]);
 
