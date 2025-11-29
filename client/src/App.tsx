@@ -7,20 +7,13 @@ import NotFound from "@/pages/not-found";
 import Home from "@/pages/home";
 import Dashboard from "@/pages/dashboard";
 import MapPage from "@/pages/map";
-import Login from "@/pages/login";
-import Signup from "@/pages/signup";
 
 function Router() {
-  const token = localStorage.getItem("authToken");
-
   return (
     <Switch>
-      <Route path="/" component={token ? Dashboard : Login} />
-      <Route path="/login" component={Login} />
-      <Route path="/signup" component={Signup} />
+      <Route path="/" component={Home} />
       <Route path="/dashboard" component={Dashboard} />
       <Route path="/map" component={MapPage} />
-      <Route path="/home" component={Home} />
       <Route component={NotFound} />
     </Switch>
   );
