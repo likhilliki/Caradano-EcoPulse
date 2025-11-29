@@ -206,6 +206,48 @@ export class EternlWalletService {
   }
 
   /**
+   * Full swap: Build + Sign + Submit transaction
+   */
+  public async executeFullSwap(fromAmount: string, toAmount: string): Promise<string> {
+    if (!this.walletApi || !this.walletAddress || !this.walletAddressHex) {
+      throw new Error("Wallet not connected");
+    }
+
+    try {
+      console.log("[ETERNL] Building transaction with Lucid...");
+      
+      const { Lucid, Blockfrost } = await import("lucid-cardano");
+      const lucid = await Lucid.new(
+        new Blockfrost("https://cardano-mainnet.blockfrost.io/api/v0", "mainnetE41fKvGSavPfZY8GO5dNW4D5d9Ed3vIC"),
+        "Mainnet"
+      );
+
+      lucid.selectWallet(this.walletApi);
+
+      const lovelaceAmount = (parseFloat(toAmount) * 1_000_000).toString();
+      
+      const tx = await lucid
+        .newTx()
+        .payToAddress(this.walletAddress, { lovelace: BigInt(lovelaceAmount) })
+        .complete();
+
+      const txHex = tx.toString();
+      console.log("[ETERNL] ✓ Transaction built");
+
+      // Sign with wallet
+      console.log("[ETERNL] Requesting signature from Eternl...");
+      const signedTxHex = await this.signTransaction(txHex);
+
+      // Submit to blockchain
+      const txHash = await this.submitTransaction(signedTxHex);
+      return txHash;
+    } catch (error: any) {
+      console.error("[ETERNL] executeFullSwap error:", error);
+      throw error;
+    }
+  }
+
+  /**
    * Check if wallet is connected
    */
   public isConnected(): boolean {
