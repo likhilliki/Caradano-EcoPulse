@@ -1,10 +1,12 @@
 import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
-import { db } from "./storage";
-import { users, otpCodes } from "../shared/schema";
-import { eq } from "drizzle-orm";
+import { storage } from "./storage";
 import { generateOTP, hashPassword, verifyPassword, generateJWT, getOTPExpiry, verifyJWT } from "./auth";
 import { submitSignedTransaction } from "./cardano";
+
+// Simple in-memory auth storage for OTP and users
+const otpStore = new Map<string, { code: string; expiresAt: Date }>();
+const userStore = new Map<string, { id: string; email: string; passwordHash: string }>();
 
 export function authMiddleware(req: Request, res: Response, next: any) {
   const token = req.headers.authorization?.split(" ")[1];
@@ -46,31 +48,23 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Email and password required" });
       }
 
-      const existing = await db.select().from(users).where(eq(users.email, email));
-      if (existing.length > 0) {
+      if (userStore.has(email)) {
         return res.status(400).json({ message: "Email already registered" });
       }
 
       const otp = generateOTP();
       const expiresAt = getOTPExpiry();
+      otpStore.set(email, { code: otp, expiresAt });
 
-      await db.insert(otpCodes).values({
-        email,
-        code: otp,
-        expiresAt,
-      });
-
-      // In production, send OTP via email. For now, log it.
       console.log(`[AUTH] OTP for ${email}: ${otp}`);
 
       res.json({
         success: true,
         message: "OTP sent to email",
         email,
-        otp, // For testing - remove in production
+        otp, // For testing only
       });
     } catch (error: any) {
-      console.error("Signup error:", error);
       res.status(500).json({ message: error.message });
     }
   });
@@ -83,42 +77,33 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Email, code, and password required" });
       }
 
-      const otpRecord = await db
-        .select()
-        .from(otpCodes)
-        .where(eq(otpCodes.email, email))
-        .orderBy((t) => t.createdAt)
-        .limit(1);
-
-      if (!otpRecord.length) {
+      const otpData = otpStore.get(email);
+      if (!otpData) {
         return res.status(400).json({ message: "No OTP found" });
       }
 
-      const otp = otpRecord[0];
-      if (otp.code !== code) {
+      if (otpData.code !== code) {
         return res.status(400).json({ message: "Invalid OTP" });
       }
 
-      if (new Date() > otp.expiresAt) {
+      if (new Date() > otpData.expiresAt) {
         return res.status(400).json({ message: "OTP expired" });
       }
 
+      const userId = Math.random().toString(36).substring(7);
       const passwordHash = hashPassword(password);
-      const newUser = await db
-        .insert(users)
-        .values({ email, passwordHash, verified: true })
-        .returning();
+      userStore.set(email, { id: userId, email, passwordHash });
+      otpStore.delete(email);
 
-      const token = generateJWT(newUser[0].id, email);
+      const token = generateJWT(userId, email);
 
       res.json({
         success: true,
         message: "User created successfully",
         token,
-        user: { id: newUser[0].id, email: newUser[0].email },
+        user: { id: userId, email },
       });
     } catch (error: any) {
-      console.error("Verify OTP error:", error);
       res.status(500).json({ message: error.message });
     }
   });
@@ -131,20 +116,13 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Email required" });
       }
 
-      const existingUser = await db.select().from(users).where(eq(users.email, email));
-
-      if (existingUser.length === 0) {
+      if (!userStore.has(email)) {
         return res.status(400).json({ message: "User not found" });
       }
 
       const otp = generateOTP();
       const expiresAt = getOTPExpiry();
-
-      await db.insert(otpCodes).values({
-        email,
-        code: otp,
-        expiresAt,
-      });
+      otpStore.set(email, { code: otp, expiresAt });
 
       console.log(`[AUTH] Login OTP for ${email}: ${otp}`);
 
@@ -152,10 +130,9 @@ export async function registerRoutes(
         success: true,
         message: "OTP sent to email",
         email,
-        otp, // For testing - remove in production
+        otp, // For testing
       });
     } catch (error: any) {
-      console.error("Login error:", error);
       res.status(500).json({ message: error.message });
     }
   });
@@ -168,41 +145,34 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Email and code required" });
       }
 
-      const otpRecord = await db
-        .select()
-        .from(otpCodes)
-        .where(eq(otpCodes.email, email))
-        .orderBy((t) => t.createdAt)
-        .limit(1);
-
-      if (!otpRecord.length) {
+      const otpData = otpStore.get(email);
+      if (!otpData) {
         return res.status(400).json({ message: "No OTP found" });
       }
 
-      const otp = otpRecord[0];
-      if (otp.code !== code) {
+      if (otpData.code !== code) {
         return res.status(400).json({ message: "Invalid OTP" });
       }
 
-      if (new Date() > otp.expiresAt) {
+      if (new Date() > otpData.expiresAt) {
         return res.status(400).json({ message: "OTP expired" });
       }
 
-      const user = await db.select().from(users).where(eq(users.email, email));
-      if (!user.length) {
+      const user = userStore.get(email);
+      if (!user) {
         return res.status(400).json({ message: "User not found" });
       }
 
-      const token = generateJWT(user[0].id, email);
+      otpStore.delete(email);
+      const token = generateJWT(user.id, email);
 
       res.json({
         success: true,
         message: "Login successful",
         token,
-        user: { id: user[0].id, email: user[0].email },
+        user: { id: user.id, email: user.email },
       });
     } catch (error: any) {
-      console.error("Verify login error:", error);
       res.status(500).json({ message: error.message });
     }
   });
@@ -210,11 +180,18 @@ export async function registerRoutes(
   // Get current user (protected)
   app.get("/api/auth/me", authMiddleware, async (req, res) => {
     try {
-      const user = await db.select().from(users).where(eq(users.id, (req as any).user.userId));
-      if (!user.length) {
+      const userId = (req as any).user.userId;
+      let foundUser = null;
+      for (const user of userStore.values()) {
+        if (user.id === userId) {
+          foundUser = user;
+          break;
+        }
+      }
+      if (!foundUser) {
         return res.status(404).json({ message: "User not found" });
       }
-      res.json({ user: { id: user[0].id, email: user[0].email } });
+      res.json({ user: { id: foundUser.id, email: foundUser.email } });
     } catch (error: any) {
       res.status(500).json({ message: error.message });
     }
