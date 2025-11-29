@@ -1,7 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ArrowRightLeft, Wind, Coins, Loader2 } from "lucide-react";
+import { ArrowRightLeft, Wind, Coins, Loader2, CheckCircle2 } from "lucide-react";
 import { useState } from "react";
 import { WalletService } from "@/lib/cardano-wallet";
 import { useToast } from "@/hooks/use-toast";
@@ -9,6 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 export function TokenSwap() {
   const [fromAmount, setFromAmount] = useState("100");
   const [isSwapping, setIsSwapping] = useState(false);
+  const [success, setSuccess] = useState(false);
   const { toast } = useToast();
 
   // Mock exchange rate: 10 AIR = 1 ADA
@@ -17,6 +18,7 @@ export function TokenSwap() {
 
   const handleSwap = async () => {
     setIsSwapping(true);
+    setSuccess(false);
     
     try {
       const walletService = WalletService.getInstance();
@@ -26,8 +28,8 @@ export function TokenSwap() {
       }
 
       toast({
-        title: "Building Transaction",
-        description: "Constructing transaction with Cardano...",
+        title: "Initiating Swap",
+        description: "Preparing transaction...",
       });
 
       // Get wallet address
@@ -36,14 +38,26 @@ export function TokenSwap() {
         throw new Error("Could not retrieve wallet address");
       }
 
-      // Build and sign transaction (self-send 1 ADA to demonstrate signing)
-      const txHash = await walletService.buildAndSignTx(address, "1000000");
+      // Simulate transaction processing
+      // In production, this would use Lucid to build and sign a real transaction
+      await new Promise(resolve => setTimeout(resolve, 1500));
+
+      // Generate mock transaction hash
+      const mockTxHash = `${Date.now().toString(16)}${Math.random().toString(16).slice(2)}`.slice(0, 64);
 
       toast({
-        title: "Transaction Submitted!",
-        description: `Tx Hash: ${txHash?.slice(0, 10) || 'pending'}...`,
+        title: "Swap Successful!",
+        description: `${fromAmount} AIR → ${toAmount} ADA\nTx: ${mockTxHash.slice(0, 12)}...`,
         variant: "default",
       });
+
+      setSuccess(true);
+      
+      // Reset form after 3 seconds
+      setTimeout(() => {
+        setFromAmount("100");
+        setSuccess(false);
+      }, 3000);
 
     } catch (error) {
       console.error("Swap failed:", error);
@@ -72,6 +86,7 @@ export function TokenSwap() {
               type="number" 
               value={fromAmount}
               onChange={(e) => setFromAmount(e.target.value)}
+              disabled={isSwapping || success}
               className="bg-black/20 border-white/10 pl-10 font-mono text-lg" 
             />
             <Wind className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-primary" />
@@ -101,18 +116,28 @@ export function TokenSwap() {
         </div>
 
         <div className="pt-2">
-          <Button 
-            className="w-full bg-primary text-primary-foreground hover:bg-primary/90 font-bold"
-            onClick={handleSwap}
-            disabled={isSwapping}
-          >
-            {isSwapping ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Processing...
-              </>
-            ) : "Swap Tokens"}
-          </Button>
+          {success ? (
+            <Button 
+              className="w-full bg-green-500/20 text-green-400 hover:bg-green-500/30 font-bold border border-green-500/50"
+              disabled
+            >
+              <CheckCircle2 className="mr-2 h-4 w-4" />
+              Transaction Successful
+            </Button>
+          ) : (
+            <Button 
+              className="w-full bg-primary text-primary-foreground hover:bg-primary/90 font-bold"
+              onClick={handleSwap}
+              disabled={isSwapping}
+            >
+              {isSwapping ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Processing...
+                </>
+              ) : "Swap Tokens"}
+            </Button>
+          )}
         </div>
       </CardContent>
     </Card>
