@@ -1,3 +1,28 @@
+import { Lucid, Blockfrost } from "lucid-cardano";
+
+const BLOCKFROST_PROJECT_ID = 'mainnetE41fKvGSavPfZY8GO5dNW4D5d9Ed3vIC';
+const BLOCKFROST_API_URL = 'https://cardano-mainnet.blockfrost.io/api/v0';
+
+let lucidInstance: Lucid | null = null;
+
+async function initLucidFrontend(): Promise<Lucid> {
+  if (lucidInstance) return lucidInstance;
+
+  try {
+    console.log("Initializing Lucid in browser...");
+    lucidInstance = await Lucid.new(
+      new Blockfrost(BLOCKFROST_API_URL, BLOCKFROST_PROJECT_ID),
+      "Mainnet"
+    );
+    console.log("Lucid initialized successfully");
+  } catch (error: any) {
+    console.error("Lucid init error:", error);
+    throw error;
+  }
+
+  return lucidInstance;
+}
+
 export class WalletService {
   private static instance: WalletService;
   private walletApi: any = null;
@@ -12,7 +37,6 @@ export class WalletService {
     return WalletService.instance;
   }
 
-  // This is called directly from the modal - no simulation
   public async connectWallet(): Promise<string> {
     console.log("=== Starting real wallet connection ===");
 
@@ -25,18 +49,16 @@ export class WalletService {
     }
 
     try {
-      // This triggers the actual Eternl popup
-      console.log("Calling enable() - should trigger Eternl popup");
+      console.log("Calling enable() - triggering Eternl popup");
       this.walletApi = await window.cardano.eternl.enable();
       console.log("Wallet enabled successfully");
 
-      // Get real addresses
       let addresses = null;
       try {
         addresses = await this.walletApi.getUsedAddresses();
-        console.log("Used addresses:", addresses?.length);
+        console.log("Used addresses count:", addresses?.length);
       } catch (e) {
-        console.log("No used addresses, trying unused");
+        console.log("Trying unused addresses");
         addresses = await this.walletApi.getUnusedAddresses();
       }
 
@@ -47,11 +69,11 @@ export class WalletService {
 
       if (addresses && addresses.length > 0) {
         this.walletAddress = addresses[0];
-        console.log("Connected successfully, address:", this.walletAddress?.slice(0, 20) + "...");
+        console.log("✓ Connected to wallet address:", this.walletAddress?.slice(0, 20) + "...");
         return this.walletAddress;
       }
 
-      throw new Error("No addresses found");
+      throw new Error("No addresses found in wallet");
     } catch (error: any) {
       console.error("Connection failed:", error);
       throw error;
@@ -62,39 +84,33 @@ export class WalletService {
     return this.walletAddress;
   }
 
-  // Real swap: builds tx on backend, signs with wallet, submits
   public async executeSwap(toAddress: string, amountLovelace: string): Promise<string | null> {
     if (!this.walletApi) {
       throw new Error("Wallet not connected");
     }
 
     try {
-      console.log("=== Starting real swap ===");
+      console.log("=== Starting real transaction ===");
       
-      // 1. Backend builds the transaction
-      console.log("Building transaction on backend...");
-      const buildRes = await fetch("/api/cardano/build-swap", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          fromAddress: this.walletAddress,
-          amount: amountLovelace,
-        }),
-      });
+      // Initialize Lucid in browser
+      const lucid = await initLucidFrontend();
+      lucid.selectWallet(this.walletApi);
 
-      if (!buildRes.ok) {
-        throw new Error(await buildRes.text());
-      }
+      console.log("Building transaction...");
+      const tx = await lucid
+        .newTx()
+        .payToAddress(toAddress, { lovelace: BigInt(amountLovelace) })
+        .complete();
 
-      const { txCBOR } = await buildRes.json();
-      console.log("Got unsigned transaction from backend");
+      const txCBOR = tx.toString();
+      console.log("✓ Transaction built");
 
-      // 2. Wallet signs - this triggers Eternl popup
+      // Sign with wallet - Eternl popup appears here
       console.log("Requesting wallet signature...");
       const signedTxCBOR = await this.walletApi.signTx(txCBOR);
-      console.log("Transaction signed by wallet");
+      console.log("✓ Transaction signed");
 
-      // 3. Backend submits to Blockfrost
+      // Submit to backend which forwards to Blockfrost
       console.log("Submitting to blockchain...");
       const submitRes = await fetch("/api/cardano/submit-tx", {
         method: "POST",
@@ -103,12 +119,13 @@ export class WalletService {
       });
 
       if (!submitRes.ok) {
-        throw new Error(await submitRes.text());
+        const error = await submitRes.text();
+        throw new Error(error);
       }
 
       const result = await submitRes.json();
       const txHash = result.txHash || result;
-      console.log("Transaction submitted:", txHash);
+      console.log("✓ Transaction submitted:", txHash);
       return txHash;
     } catch (error: any) {
       console.error("Swap error:", error);
