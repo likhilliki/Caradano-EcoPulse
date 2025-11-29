@@ -11,13 +11,16 @@ import Login from "@/pages/login";
 import Signup from "@/pages/signup";
 
 function Router() {
+  const token = localStorage.getItem("authToken");
+
   return (
     <Switch>
-      <Route path="/" component={Home} />
+      <Route path="/" component={token ? Dashboard : Login} />
       <Route path="/login" component={Login} />
       <Route path="/signup" component={Signup} />
       <Route path="/dashboard" component={Dashboard} />
       <Route path="/map" component={MapPage} />
+      <Route path="/home" component={Home} />
       <Route component={NotFound} />
     </Switch>
   );
