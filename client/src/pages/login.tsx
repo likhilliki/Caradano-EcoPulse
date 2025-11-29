@@ -22,20 +22,28 @@ export default function Login() {
 
     setLoading(true);
     try {
-      const users = JSON.parse(localStorage.getItem("users") || "[]");
-      const user = users.find((u: any) => u.email === email && u.password === password);
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
 
-      if (!user) {
-        toast({ title: "Error", description: "Invalid email or password", variant: "destructive" });
-        setLoading(false);
-        return;
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.message || "Login failed");
       }
 
-      localStorage.setItem("currentUser", JSON.stringify(user));
+      localStorage.setItem("authToken", data.token);
+      localStorage.setItem("user", JSON.stringify(data.user));
       toast({ title: "Success", description: "Logged in successfully!" });
       navigate("/dashboard");
     } catch (err) {
-      toast({ title: "Error", description: "Login failed", variant: "destructive" });
+      toast({
+        title: "Error",
+        description: err instanceof Error ? err.message : "Login failed",
+        variant: "destructive",
+      });
       setLoading(false);
     }
   };
@@ -45,7 +53,7 @@ export default function Login() {
       <Card className="w-full max-w-md glass-panel border-white/10">
         <CardHeader>
           <CardTitle className="text-2xl font-heading">Login</CardTitle>
-          <p className="text-sm text-muted-foreground mt-2">Access your account</p>
+          <p className="text-sm text-muted-foreground mt-2">Access your Eco-Cyberpunk dApp</p>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleLogin} className="space-y-4">
@@ -97,7 +105,7 @@ export default function Login() {
               <div className="w-full border-t border-white/10"></div>
             </div>
             <div className="relative flex justify-center text-xs">
-              <span className="px-2 bg-background text-muted-foreground">Don't have account?</span>
+              <span className="px-2 bg-background text-muted-foreground">New user?</span>
             </div>
           </div>
 

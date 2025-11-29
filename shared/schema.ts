@@ -1,38 +1,46 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, boolean } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, integer } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
+// Users table for authentication
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   email: text("email").notNull().unique(),
   passwordHash: text("password_hash").notNull(),
-  verified: boolean("verified").default(false),
+  walletAddress: text("wallet_address"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-export const otpCodes = pgTable("otp_codes", {
+// AQI readings storage
+export const aqiReadings = pgTable("aqi_readings", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  email: text("email").notNull(),
-  code: varchar("code").notNull(),
-  expiresAt: timestamp("expires_at").notNull(),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  latitude: text("latitude").notNull(),
+  longitude: text("longitude").notNull(),
+  aqi: integer("aqi").notNull(),
+  timestamp: timestamp("timestamp").defaultNow(),
+});
+
+// ECO tokens storage
+export const tokens = pgTable("tokens", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  amount: integer("amount").notNull(),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-export const insertUserSchema = z.object({
+// Schemas
+export const signupSchema = z.object({
   email: z.string().email("Invalid email"),
-  password: z.string().min(8, "Password must be at least 8 characters"),
+  password: z.string().min(6, "Password must be at least 6 characters"),
 });
 
 export const loginSchema = z.object({
   email: z.string().email("Invalid email"),
+  password: z.string(),
 });
 
-export const verifyOtpSchema = z.object({
-  email: z.string().email("Invalid email"),
-  code: z.string().length(6, "OTP must be 6 digits"),
-});
-
-export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
-export type OtpCode = typeof otpCodes.$inferSelect;
+export type AQIReading = typeof aqiReadings.$inferSelect;
+export type Token = typeof tokens.$inferSelect;

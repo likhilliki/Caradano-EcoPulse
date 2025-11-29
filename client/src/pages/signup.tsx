@@ -34,23 +34,28 @@ export default function Signup() {
 
     setLoading(true);
     try {
-      const users = JSON.parse(localStorage.getItem("users") || "[]");
-      
-      if (users.find((u: any) => u.email === email)) {
-        toast({ title: "Error", description: "Email already registered", variant: "destructive" });
-        setLoading(false);
-        return;
+      const res = await fetch("/api/auth/signup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.message || "Signup failed");
       }
 
-      const newUser = { email, password, id: Math.random().toString(36).substr(2, 9) };
-      users.push(newUser);
-      localStorage.setItem("users", JSON.stringify(users));
-      localStorage.setItem("currentUser", JSON.stringify(newUser));
-
+      localStorage.setItem("authToken", data.token);
+      localStorage.setItem("user", JSON.stringify(data.user));
       toast({ title: "Success", description: "Account created successfully!" });
       navigate("/dashboard");
     } catch (err) {
-      toast({ title: "Error", description: "Signup failed", variant: "destructive" });
+      toast({
+        title: "Error",
+        description: err instanceof Error ? err.message : "Signup failed",
+        variant: "destructive",
+      });
       setLoading(false);
     }
   };
@@ -60,7 +65,7 @@ export default function Signup() {
       <Card className="w-full max-w-md glass-panel border-white/10">
         <CardHeader>
           <CardTitle className="text-2xl font-heading">Create Account</CardTitle>
-          <p className="text-sm text-muted-foreground mt-2">Join now</p>
+          <p className="text-sm text-muted-foreground mt-2">Join the Eco-Cyberpunk dApp</p>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSignup} className="space-y-4">

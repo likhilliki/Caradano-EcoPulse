@@ -1,38 +1,71 @@
-import { type User, type InsertUser } from "@shared/schema";
-import { randomUUID } from "crypto";
+import { drizzle } from "drizzle-orm/node-postgres";
+import { Pool } from "pg";
+import * as schema from "@shared/schema";
+import { eq } from "drizzle-orm";
 
-// modify the interface with any CRUD methods
-// you might need
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+});
 
-export interface IStorage {
-  getUser(id: string): Promise<User | undefined>;
-  getUserByUsername(username: string): Promise<User | undefined>;
-  createUser(user: InsertUser): Promise<User>;
-}
+export const db = drizzle(pool, { schema });
 
-export class MemStorage implements IStorage {
-  private users: Map<string, User>;
+export const storage = {
+  // Users
+  async getUserByEmail(email: string) {
+    const result = await db.select().from(schema.users).where(eq(schema.users.email, email));
+    return result[0];
+  },
 
-  constructor() {
-    this.users = new Map();
-  }
+  async getUserById(id: string) {
+    const result = await db.select().from(schema.users).where(eq(schema.users.id, id));
+    return result[0];
+  },
 
-  async getUser(id: string): Promise<User | undefined> {
-    return this.users.get(id);
-  }
+  async createUser(email: string, passwordHash: string) {
+    const result = await db
+      .insert(schema.users)
+      .values({ email, passwordHash })
+      .returning();
+    return result[0];
+  },
 
-  async getUserByUsername(username: string): Promise<User | undefined> {
-    return Array.from(this.users.values()).find(
-      (user) => user.username === username,
-    );
-  }
+  async updateWalletAddress(userId: string, walletAddress: string) {
+    await db
+      .update(schema.users)
+      .set({ walletAddress })
+      .where(eq(schema.users.id, userId));
+  },
 
-  async createUser(insertUser: InsertUser): Promise<User> {
-    const id = randomUUID();
-    const user: User = { ...insertUser, id };
-    this.users.set(id, user);
-    return user;
-  }
-}
+  // AQI Readings
+  async createAQIReading(userId: string, latitude: string, longitude: string, aqi: number) {
+    const result = await db
+      .insert(schema.aqiReadings)
+      .values({ userId, latitude, longitude, aqi })
+      .returning();
+    return result[0];
+  },
 
-export const storage = new MemStorage();
+  async getAQIReadings(userId: string) {
+    return await db
+      .select()
+      .from(schema.aqiReadings)
+      .where(eq(schema.aqiReadings.userId, userId));
+  },
+
+  // Tokens
+  async createToken(userId: string, amount: number) {
+    const result = await db
+      .insert(schema.tokens)
+      .values({ userId, amount })
+      .returning();
+    return result[0];
+  },
+
+  async getUserTokens(userId: string) {
+    const result = await db
+      .select()
+      .from(schema.tokens)
+      .where(eq(schema.tokens.userId, userId));
+    return result.reduce((sum, token) => sum + token.amount, 0);
+  },
+};
