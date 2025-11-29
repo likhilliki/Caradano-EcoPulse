@@ -1,0 +1,87 @@
+The entire project is complete and working — backend, frontend, Masumi, Aiken, AQI, leaderboard — everything is done.
+The ONLY final step needed is FULL REAL integration with Eternl Cardano wallet.
+
+I already have the Eternl web extension installed in my browser — I need the app to actually detect it, connect to it, and retrieve the real wallet address, sign transactions, and allow sending & receiving real tokens on Cardano.
+
+Please implement:
+
+Detection of Eternl wallet in browser (window.cardano.eternl)
+
+Real wallet connection
+
+Getting wallet address
+
+Checking ADA balance
+
+Checking custom token balance (HealthCredit)
+
+Ability to sign a transaction
+
+Ability to submit transaction through Blockfrost
+
+Use the real Cardano wallet API exposed by Eternl, NOT a simulation.
+
+Example to detect connection:
+
+if (window.cardano && window.cardano.eternl) {
+  await window.cardano.eternl.enable();
+}
+
+
+Then integrate CIP-30 functionality:
+
+getUsedAddresses()
+
+getChangeAddress()
+
+signTx()
+
+submitTx()
+
+The result must allow real on-chain interaction with Cardano mainnet via Blockfrost + Eternl.
+
+Now I’ll also give you the exact code you should expect to be generated:
+
+🔥 REAL Eternl Wallet Connect (React)
+const connectWallet = async () => {
+  if (!window.cardano || !window.cardano.eternl) {
+    alert("Eternl wallet not found!");
+    return;
+  }
+
+  const wallet = await window.cardano.eternl.enable();
+  const usedAddresses = await wallet.getUsedAddresses();
+  const hexAddress = usedAddresses[0];
+
+  // convert from hex to bech32 using cardano-serialization-lib
+  const addr = Address.from_bytes(Buffer.from(hexAddress, "hex"))
+      .to_bech32();
+
+  setWalletAddress(addr);
+  console.log("Connected wallet:", addr);
+};
+
+🟢 REAL ADA Balance Query
+const balanceHex = await wallet.getBalance();
+const value = Value.from_bytes(Buffer.from(balanceHex, "hex"));
+const ada = value.coin() / 1000000;
+console.log("ADA:", ada);
+
+🟣 REAL Token Balance (HealthCredit)
+const multiAsset = value.multiasset();
+const policies = multiAsset.keys();
+
+for (let i = 0; i < policies.len(); i++) {
+  const policy = policies.get(i);
+  const assets = multiAsset.get(policy);
+}
+
+🔐 REAL Transaction Signing
+const signedTx = await wallet.signTx(txHex, true);
+
+🚀 REAL Transaction Submit (via Blockfrost)
+requests.post(
+  "https://cardano-mainnet.blockfrost.io/api/v0/tx/submit",
+  headers={"project_id": BLOCKFROST_API_KEY},
+  data=bytes.fromhex(signedTx)
+)
