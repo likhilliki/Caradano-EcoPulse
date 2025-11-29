@@ -20,6 +20,18 @@ export function WalletModal({ open, onOpenChange, onConnect }: WalletModalProps)
     if (open) {
       setStatus('idle');
       setErrorMsg("");
+      
+      // Debug: Check what wallets are available
+      console.log("Modal opened - checking for wallets...");
+      console.log("window.cardano exists:", !!window.cardano);
+      console.log("Available wallets:", window.cardano ? Object.keys(window.cardano) : "none");
+      console.log("Eternl available:", !!window.cardano?.eternl);
+      
+      if (window.cardano?.eternl) {
+        console.log("✓ Eternl extension detected and ready");
+      } else {
+        console.warn("⚠ Eternl extension NOT detected");
+      }
     }
   }, [open]);
 
@@ -28,12 +40,19 @@ export function WalletModal({ open, onOpenChange, onConnect }: WalletModalProps)
     setErrorMsg("");
     
     try {
-      // Check if Eternl extension exists
-      if (!window.cardano || !window.cardano.eternl) {
-        throw new Error("Eternl wallet not found. Please install the Eternl extension from https://eternl.io");
+      console.log("=== Starting Wallet Connection Process ===");
+      
+      // Check if running in browser
+      if (typeof window === 'undefined') {
+        throw new Error("Must be run in a browser environment");
       }
 
-      console.log("=== Triggering Eternl Wallet Connection ===");
+      // Check if Eternl extension is installed
+      if (!window.cardano?.eternl) {
+        throw new Error("Eternl wallet extension not detected. Please install it from https://eternl.io and refresh this page.");
+      }
+
+      console.log("Eternl extension detected, initiating connection...");
       
       // Use WalletService to connect - this will trigger the Eternl popup
       const walletService = WalletService.getInstance();

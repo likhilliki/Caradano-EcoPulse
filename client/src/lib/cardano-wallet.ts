@@ -40,18 +40,32 @@ export class WalletService {
   public async connectWallet(): Promise<string> {
     console.log("=== Starting real wallet connection ===");
 
+    // Wait for Eternl to be fully loaded
+    let attempts = 0;
+    while (attempts < 10) {
+      if (window.cardano?.eternl?.enable) {
+        break;
+      }
+      console.log("Waiting for Eternl extension to load...");
+      await new Promise(resolve => setTimeout(resolve, 300));
+      attempts++;
+    }
+
     if (!window.cardano) {
-      throw new Error("No wallet detected. Install Eternl extension.");
+      throw new Error("No Cardano wallet detected. Please install Eternl extension from https://eternl.io");
     }
 
     if (!window.cardano.eternl) {
-      throw new Error("Eternl not found. Install Eternl extension.");
+      throw new Error("Eternl wallet not found. Please install the Eternl extension and refresh the page.");
     }
 
     try {
-      console.log("Calling enable() - triggering Eternl popup");
+      console.log("Eternl detected, calling enable() - this will trigger popup");
+      
+      // Call enable() - this triggers the Eternl browser extension popup
       this.walletApi = await window.cardano.eternl.enable();
-      console.log("Wallet enabled successfully");
+      
+      console.log("✓ Wallet enabled successfully");
 
       let addresses = null;
       try {
