@@ -1,5 +1,3 @@
-const BLOCKFROST_PROJECT_ID = 'mainnetE41fKvGSavPfZY8GO5dNW4D5d9Ed3vIC';
-
 export class WalletService {
   private static instance: WalletService;
   private walletApi: any = null;
@@ -14,97 +12,66 @@ export class WalletService {
     return WalletService.instance;
   }
 
-  public async connectWallet(): Promise<boolean> {
+  // This is called directly from the modal - no simulation
+  public async connectWallet(): Promise<string> {
+    console.log("=== Starting real wallet connection ===");
+
     if (!window.cardano) {
-      throw new Error("No wallet extension found. Please install Eternl.");
+      throw new Error("No wallet detected. Install Eternl extension.");
     }
 
     if (!window.cardano.eternl) {
-      const available = Object.keys(window.cardano).filter(k => k !== 'eternl');
-      throw new Error(`Eternl not found. Available: ${available.join(', ') || 'None'}`);
+      throw new Error("Eternl not found. Install Eternl extension.");
     }
 
     try {
-      console.log("Requesting Eternl access...");
+      // This triggers the actual Eternl popup
+      console.log("Calling enable() - should trigger Eternl popup");
       this.walletApi = await window.cardano.eternl.enable();
-      console.log("Eternl access granted");
+      console.log("Wallet enabled successfully");
 
+      // Get real addresses
       let addresses = null;
-      
       try {
         addresses = await this.walletApi.getUsedAddresses();
-        console.log("Got used addresses:", addresses?.length);
+        console.log("Used addresses:", addresses?.length);
       } catch (e) {
-        console.log("getUsedAddresses failed, trying getUnusedAddresses");
+        console.log("No used addresses, trying unused");
+        addresses = await this.walletApi.getUnusedAddresses();
       }
 
-      if (!addresses || (Array.isArray(addresses) && addresses.length === 0)) {
-        try {
-          addresses = await this.walletApi.getUnusedAddresses();
-          console.log("Got unused addresses:", addresses?.length);
-        } catch (e) {
-          console.log("getUnusedAddresses also failed");
-        }
-      }
-
-      if (!addresses || (Array.isArray(addresses) && addresses.length === 0)) {
-        try {
-          console.log("Trying getChangeAddress as fallback...");
-          const changeAddr = await this.walletApi.getChangeAddress();
-          if (changeAddr) {
-            addresses = [changeAddr];
-            console.log("Got change address as fallback");
-          }
-        } catch (e) {
-          console.log("getChangeAddress failed");
-        }
+      if (!addresses || addresses.length === 0) {
+        const changeAddr = await this.walletApi.getChangeAddress();
+        addresses = [changeAddr];
       }
 
       if (addresses && addresses.length > 0) {
         this.walletAddress = addresses[0];
-        console.log("Wallet connected successfully");
-        return true;
-      } else {
-        throw new Error("No addresses available in wallet.");
+        console.log("Connected successfully, address:", this.walletAddress?.slice(0, 20) + "...");
+        return this.walletAddress;
       }
+
+      throw new Error("No addresses found");
     } catch (error: any) {
-      console.error("Failed to connect wallet:", error);
-      const msg = error.info || error.message || "Unknown connection error";
-      throw new Error(`Connection Failed: ${msg}`);
+      console.error("Connection failed:", error);
+      throw error;
     }
   }
 
   public async getAddress(): Promise<string | null> {
-    if (this.walletAddress) return this.walletAddress;
-
-    if (!this.walletApi) {
-      return null;
-    }
-
-    try {
-      let addresses = await this.walletApi.getUsedAddresses();
-      if (!addresses || addresses.length === 0) {
-        addresses = await this.walletApi.getUnusedAddresses();
-      }
-      
-      if (addresses && addresses.length > 0) {
-        this.walletAddress = addresses[0];
-        return this.walletAddress;
-      }
-    } catch (error) {
-      console.error("Failed to get address:", error);
-    }
-    return null;
+    return this.walletAddress;
   }
 
-  // Real transaction flow: Build -> Sign -> Submit
-  public async executeSwap(toAddress: string, amountLovelace: string): Promise<string> {
+  // Real swap: builds tx on backend, signs with wallet, submits
+  public async executeSwap(toAddress: string, amountLovelace: string): Promise<string | null> {
     if (!this.walletApi) {
       throw new Error("Wallet not connected");
     }
 
     try {
-      // 1. Build transaction on backend
+      console.log("=== Starting real swap ===");
+      
+      // 1. Backend builds the transaction
       console.log("Building transaction on backend...");
       const buildRes = await fetch("/api/cardano/build-swap", {
         method: "POST",
@@ -116,20 +83,19 @@ export class WalletService {
       });
 
       if (!buildRes.ok) {
-        throw new Error(`Build failed: ${await buildRes.text()}`);
+        throw new Error(await buildRes.text());
       }
 
-      const buildData = await buildRes.json();
-      const txCBOR = buildData.txCBOR;
+      const { txCBOR } = await buildRes.json();
+      console.log("Got unsigned transaction from backend");
 
-      console.log("Transaction built, requesting signature...");
-
-      // 2. Sign transaction with wallet (CIP-30)
+      // 2. Wallet signs - this triggers Eternl popup
+      console.log("Requesting wallet signature...");
       const signedTxCBOR = await this.walletApi.signTx(txCBOR);
       console.log("Transaction signed by wallet");
 
-      // 3. Submit signed transaction to backend
-      console.log("Submitting signed transaction...");
+      // 3. Backend submits to Blockfrost
+      console.log("Submitting to blockchain...");
       const submitRes = await fetch("/api/cardano/submit-tx", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -137,17 +103,16 @@ export class WalletService {
       });
 
       if (!submitRes.ok) {
-        throw new Error(`Submit failed: ${await submitRes.text()}`);
+        throw new Error(await submitRes.text());
       }
 
-      const submitData = await submitRes.json();
-      const txHash = submitData.txHash;
-
+      const result = await submitRes.json();
+      const txHash = result.txHash || result;
       console.log("Transaction submitted:", txHash);
       return txHash;
     } catch (error: any) {
-      console.error("Swap failed:", error);
-      throw new Error(`Swap Failed: ${error.message}`);
+      console.error("Swap error:", error);
+      throw error;
     }
   }
 

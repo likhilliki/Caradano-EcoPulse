@@ -1,4 +1,4 @@
-import { Lucid, Blockfrost, TxComplete } from "lucid-cardano";
+import { Lucid, Blockfrost } from "lucid-cardano";
 
 const BLOCKFROST_PROJECT_ID = 'mainnetE41fKvGSavPfZY8GO5dNW4D5d9Ed3vIC';
 const BLOCKFROST_API_URL = 'https://cardano-mainnet.blockfrost.io/api/v0';
@@ -8,10 +8,16 @@ let lucidInstance: Lucid | null = null;
 export async function initLucid(): Promise<Lucid> {
   if (lucidInstance) return lucidInstance;
 
-  lucidInstance = await Lucid.new(
-    new Blockfrost(BLOCKFROST_API_URL, BLOCKFROST_PROJECT_ID),
-    "Mainnet"
-  );
+  try {
+    lucidInstance = await Lucid.new(
+      new Blockfrost(BLOCKFROST_API_URL, BLOCKFROST_PROJECT_ID),
+      "Mainnet"
+    );
+    console.log("Lucid initialized successfully");
+  } catch (error) {
+    console.error("Failed to init Lucid:", error);
+    throw error;
+  }
 
   return lucidInstance;
 }
@@ -23,17 +29,21 @@ export async function buildSwapTransaction(
   try {
     const lucid = await initLucid();
     
-    // Build a simple transaction: self-send to demonstrate
+    console.log("Building transaction...");
+    console.log("From:", fromAddress);
+    console.log("Amount:", amount, "lovelace");
+
     const tx = await lucid
       .newTx()
       .payToAddress(fromAddress, { lovelace: BigInt(amount) })
       .complete();
 
-    // Convert transaction to CBOR hex
-    return tx.toString();
+    const cbor = tx.toString();
+    console.log("Transaction built successfully, CBOR length:", cbor.length);
+    return cbor;
   } catch (error: any) {
     console.error("Failed to build transaction:", error);
-    throw new Error(`Transaction Build Failed: ${error.message}`);
+    throw new Error(`Build Failed: ${error.message}`);
   }
 }
 
@@ -41,7 +51,8 @@ export async function submitSignedTransaction(
   signedTxCBOR: string
 ): Promise<string> {
   try {
-    // Submit the signed transaction CBOR to Blockfrost
+    console.log("Submitting signed transaction...");
+    
     const response = await fetch(
       `${BLOCKFROST_API_URL}/tx/submit`,
       {
@@ -56,14 +67,16 @@ export async function submitSignedTransaction(
 
     if (!response.ok) {
       const error = await response.text();
-      throw new Error(`Blockfrost Error: ${error}`);
+      console.error("Blockfrost error:", error);
+      throw new Error(error);
     }
 
     const result = await response.json();
+    console.log("Transaction submitted successfully:", result);
     return result;
   } catch (error: any) {
     console.error("Failed to submit transaction:", error);
-    throw new Error(`Transaction Submit Failed: ${error.message}`);
+    throw new Error(`Submit Failed: ${error.message}`);
   }
 }
 
@@ -84,7 +97,7 @@ export async function getTransactionStatus(txHash: string): Promise<any> {
 
     return await response.json();
   } catch (error: any) {
-    console.error("Failed to get transaction status:", error);
-    throw new Error(`Status Check Failed: ${error.message}`);
+    console.error("Failed to get status:", error);
+    throw new Error(`Status Failed: ${error.message}`);
   }
 }
