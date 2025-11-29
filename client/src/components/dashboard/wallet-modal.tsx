@@ -18,7 +18,18 @@ export function WalletModal({ open, onOpenChange, onConnect }: WalletModalProps)
 
   const connect = () => {
     setStatus('connecting');
+    
+    // Simulate real wallet connection delay
     setTimeout(() => {
+      // In a real app, here we would check window.cardano
+      /*
+      if (window.cardano && window.cardano.eternl) {
+        window.cardano.eternl.enable().then(api => {
+            // Connection successful
+        });
+      }
+      */
+      
       setStatus('connected');
       onConnect();
       setTimeout(() => {
@@ -33,7 +44,7 @@ export function WalletModal({ open, onOpenChange, onConnect }: WalletModalProps)
         <DialogHeader>
           <DialogTitle className="text-xl font-heading">Connect Wallet</DialogTitle>
           <DialogDescription>
-            Select your Cardano wallet to continue.
+            Connect your Eternal wallet to interact with the Cardano blockchain.
           </DialogDescription>
         </DialogHeader>
         
@@ -55,20 +66,11 @@ export function WalletModal({ open, onOpenChange, onConnect }: WalletModalProps)
             {status === 'connecting' && <Loader2 className="ml-auto h-5 w-5 animate-spin text-primary" />}
             {status === 'connected' && <CheckCircle2 className="ml-auto h-5 w-5 text-primary" />}
           </Button>
-
-          <Button 
-            variant="outline" 
-            className="h-16 justify-start gap-4 border-white/10 hover:bg-white/5 hover:border-primary/50 transition-all group"
-            disabled={status !== 'idle'}
-          >
-            <div className="h-10 w-10 rounded-full bg-[#2b2b2b] flex items-center justify-center border border-white/10">
-              <div className="w-5 h-5 rounded-sm bg-blue-500" />
-            </div>
-            <div className="flex flex-col items-start">
-              <span className="font-bold text-white group-hover:text-primary transition-colors">Nami</span>
-              <span className="text-xs text-muted-foreground">Browser Extension</span>
-            </div>
-          </Button>
+          
+          {/* Only showing Eternal as requested */}
+          <div className="text-xs text-center text-muted-foreground mt-2">
+            Make sure you have the Eternal wallet extension installed.
+          </div>
         </div>
       </DialogContent>
     </Dialog>
