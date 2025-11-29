@@ -27,33 +27,25 @@ export function Navbar() {
   return (
     <nav className="sticky top-0 z-50 w-full border-b border-white/5 bg-background/80 backdrop-blur-md">
       <div className="container mx-auto px-4 h-16 flex items-center justify-between">
-        <Link href="/">
-          <a className="flex items-center gap-2">
-            <div className="h-8 w-8 rounded-full bg-primary/20 flex items-center justify-center">
-              <ShieldCheck className="h-5 w-5 text-primary" />
-            </div>
-            <span className="font-heading font-bold text-xl tracking-tight text-white">
-              Eco<span className="text-primary">Pulse</span>
-            </span>
-          </a>
+        <Link href="/" className="flex items-center gap-2">
+          <div className="h-8 w-8 rounded-full bg-primary/20 flex items-center justify-center">
+            <ShieldCheck className="h-5 w-5 text-primary" />
+          </div>
+          <span className="font-heading font-bold text-xl tracking-tight text-white">
+            Eco<span className="text-primary">Pulse</span>
+          </span>
         </Link>
 
         {/* Desktop Nav */}
         <div className="hidden md:flex items-center gap-8">
-          <Link href="/">
-            <a className={`text-sm font-medium transition-colors hover:text-primary ${location === '/' ? 'text-primary' : 'text-muted-foreground'}`}>
-              Home
-            </a>
+          <Link href="/" className={`text-sm font-medium transition-colors hover:text-primary ${location === '/' ? 'text-primary' : 'text-muted-foreground'}`}>
+            Home
           </Link>
-          <Link href="/dashboard">
-            <a className={`text-sm font-medium transition-colors hover:text-primary ${location === '/dashboard' ? 'text-primary' : 'text-muted-foreground'}`}>
-              Dashboard
-            </a>
+          <Link href="/dashboard" className={`text-sm font-medium transition-colors hover:text-primary ${location === '/dashboard' ? 'text-primary' : 'text-muted-foreground'}`}>
+            Dashboard
           </Link>
-          <Link href="/map">
-            <a className="text-sm font-medium text-muted-foreground transition-colors hover:text-primary">
-              Live Map
-            </a>
+          <Link href="/map" className="text-sm font-medium text-muted-foreground transition-colors hover:text-primary">
+            Live Map
           </Link>
           
           <Button 
@@ -76,11 +68,11 @@ export function Navbar() {
             </SheetTrigger>
             <SheetContent side="right" className="w-[300px] border-l border-white/10 bg-card/95 backdrop-blur-xl">
               <div className="flex flex-col gap-6 mt-8">
-                <Link href="/">
-                  <a className="text-lg font-medium hover:text-primary">Home</a>
+                <Link href="/" className="text-lg font-medium hover:text-primary">
+                  Home
                 </Link>
-                <Link href="/dashboard">
-                  <a className="text-lg font-medium hover:text-primary">Dashboard</a>
+                <Link href="/dashboard" className="text-lg font-medium hover:text-primary">
+                  Dashboard
                 </Link>
                 <Button onClick={handleConnect} className="w-full">
                   {connectedAddress ? "Wallet Connected" : "Connect Wallet"}

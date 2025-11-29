@@ -67,10 +67,10 @@ export function WalletModal({ open, onOpenChange, onConnect }: WalletModalProps)
           onOpenChange(false);
         }, 500);
       }
-    } catch (error) {
-      console.error("Connection error:", error);
+    } catch (error: any) {
+      console.error("Failed to connect wallet:", error?.message || error?.info || error);
       setStatus('error');
-      const msg = error instanceof Error ? error.message : "Unknown error";
+      const msg = error?.info || error?.message || "Unknown error occurred";
       setErrorMsg(msg);
       
       toast({

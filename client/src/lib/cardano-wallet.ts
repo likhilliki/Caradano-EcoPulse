@@ -93,22 +93,40 @@ export class WalletService {
       console.log("=== Starting real transaction ===");
       
       // Initialize Lucid in browser
-      const lucid = await initLucidFrontend();
-      lucid.selectWallet(this.walletApi);
+      let lucid;
+      try {
+        lucid = await initLucidFrontend();
+        lucid.selectWallet(this.walletApi);
+      } catch (error: any) {
+        console.error("Failed to initialize Lucid:", error?.message || error);
+        throw new Error(`Lucid initialization failed: ${error?.message || 'Unknown error'}`);
+      }
 
       console.log("Building transaction...");
-      const tx = await lucid
-        .newTx()
-        .payToAddress(toAddress, { lovelace: BigInt(amountLovelace) })
-        .complete();
+      let tx;
+      try {
+        tx = await lucid
+          .newTx()
+          .payToAddress(toAddress, { lovelace: BigInt(amountLovelace) })
+          .complete();
+      } catch (error: any) {
+        console.error("Failed to build transaction:", error?.message || error);
+        throw new Error(`Transaction build failed: ${error?.message || 'Unknown error'}`);
+      }
 
       const txCBOR = tx.toString();
       console.log("✓ Transaction built");
 
       // Sign with wallet - Eternl popup appears here
       console.log("Requesting wallet signature...");
-      const signedTxCBOR = await this.walletApi.signTx(txCBOR);
-      console.log("✓ Transaction signed");
+      let signedTxCBOR;
+      try {
+        signedTxCBOR = await this.walletApi.signTx(txCBOR);
+        console.log("✓ Transaction signed");
+      } catch (error: any) {
+        console.error("Failed to sign transaction:", error?.message || error?.info || error);
+        throw new Error(`Transaction signing failed: ${error?.info || error?.message || 'User rejected or unknown error'}`);
+      }
 
       // Submit to backend which forwards to Blockfrost
       console.log("Submitting to blockchain...");
@@ -120,7 +138,7 @@ export class WalletService {
 
       if (!submitRes.ok) {
         const error = await submitRes.text();
-        throw new Error(error);
+        throw new Error(`Submission failed: ${error}`);
       }
 
       const result = await submitRes.json();
@@ -128,7 +146,7 @@ export class WalletService {
       console.log("✓ Transaction submitted:", txHash);
       return txHash;
     } catch (error: any) {
-      console.error("Swap error:", error);
+      console.error("Swap error:", error?.message || error);
       throw error;
     }
   }
