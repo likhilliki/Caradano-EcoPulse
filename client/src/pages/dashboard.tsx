@@ -2,6 +2,7 @@ import { Navbar } from "@/components/layout/navbar";
 import { AQICard } from "@/components/dashboard/aqi-card";
 import { TokenSwap } from "@/components/dashboard/token-swap";
 import { NetworkStatus } from "@/components/dashboard/network-status";
+import { WalletImport } from "@/components/dashboard/wallet-import";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { MOCK_TRANSACTIONS, MOCK_AQI_HISTORY } from "@/lib/mock-data";
@@ -52,6 +53,8 @@ export default function Dashboard() {
         <div className="grid lg:grid-cols-12 gap-6">
           {/* Left Column - Stats & Map */}
           <div className="lg:col-span-8 space-y-6">
+            {/* Wallet Import */}
+            <WalletImport />
             {/* Map Section */}
             <Link href="/map">
               <Card className="glass-panel border-white/5 overflow-hidden h-[400px] relative group cursor-pointer transition-all hover:border-primary/30">

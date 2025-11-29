@@ -209,7 +209,7 @@ export class EternlWalletService {
    * Full swap: Build + Sign + Submit transaction
    */
   public async executeFullSwap(fromAmount: string, toAmount: string): Promise<string> {
-    if (!this.walletApi || !this.walletAddress || !this.walletAddressHex) {
+    if (!this.walletApi || !this.walletAddress) {
       throw new Error("Wallet not connected");
     }
 
