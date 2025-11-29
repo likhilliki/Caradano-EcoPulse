@@ -59,10 +59,11 @@ export function TokenSwap() {
       }, 5000);
 
     } catch (error) {
-      console.error("[SWAP] Failed:", error);
+      const errorMsg = error instanceof Error ? error.message : "Transaction rejected or failed";
+      console.error("[SWAP] Failed:", errorMsg);
       toast({
         title: "Swap Failed",
-        description: error instanceof Error ? error.message : "Transaction rejected or failed",
+        description: errorMsg,
         variant: "destructive",
       });
     } finally {

@@ -206,7 +206,7 @@ export class EternlWalletService {
   }
 
   /**
-   * Full swap: Build + Sign + Submit transaction
+   * Full swap: Build + Sign + Submit transaction using Eternl's submitTx
    */
   public async executeFullSwap(fromAmount: string, toAmount: string): Promise<string> {
     if (!this.walletApi || !this.walletAddress) {
@@ -214,36 +214,49 @@ export class EternlWalletService {
     }
 
     try {
-      console.log("[ETERNL] Building transaction with Lucid...");
+      console.log("[ETERNL] === STARTING SWAP ===");
+      console.log("[ETERNL] To: " + toAmount + " ADA");
       
       const { Lucid, Blockfrost } = await import("lucid-cardano");
+      console.log("[ETERNL] Initializing Lucid...");
+      
       const lucid = await Lucid.new(
         new Blockfrost("https://cardano-mainnet.blockfrost.io/api/v0", "mainnetE41fKvGSavPfZY8GO5dNW4D5d9Ed3vIC"),
         "Mainnet"
       );
 
+      console.log("[ETERNL] Selecting wallet...");
       lucid.selectWallet(this.walletApi);
 
       const lovelaceAmount = (parseFloat(toAmount) * 1_000_000).toString();
+      console.log("[ETERNL] Amount in lovelace:", lovelaceAmount);
       
+      console.log("[ETERNL] Building transaction...");
       const tx = await lucid
         .newTx()
         .payToAddress(this.walletAddress, { lovelace: BigInt(lovelaceAmount) })
         .complete();
 
       const txHex = tx.toString();
-      console.log("[ETERNL] ✓ Transaction built");
+      console.log("[ETERNL] ✓ Transaction built, hex length:", txHex.length);
 
-      // Sign with wallet
-      console.log("[ETERNL] Requesting signature from Eternl...");
-      const signedTxHex = await this.signTransaction(txHex);
-
-      // Submit to blockchain
-      const txHash = await this.submitTransaction(signedTxHex);
-      return txHash;
+      // Sign and submit using Eternl's CIP-30 submitTx (bypasses Blockfrost)
+      console.log("[ETERNL] Requesting submitTx from Eternl...");
+      
+      if (this.walletApi.submitTx) {
+        console.log("[ETERNL] Using Eternl's submitTx method");
+        const txHash = await this.walletApi.submitTx(txHex);
+        console.log("[ETERNL] ✓ Transaction submitted via Eternl:", txHash);
+        return txHash;
+      } else {
+        console.log("[ETERNL] submitTx not available, signing manually...");
+        const signedTxHex = await this.signTransaction(txHex);
+        const txHash = await this.submitTransaction(signedTxHex);
+        return txHash;
+      }
     } catch (error: any) {
-      console.error("[ETERNL] executeFullSwap error:", error);
-      throw error;
+      console.error("[ETERNL] Swap failed:", error?.message || error);
+      throw new Error(`Swap failed: ${error?.message || String(error)}`);
     }
   }
 
