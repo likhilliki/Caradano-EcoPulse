@@ -15,11 +15,11 @@ function Router() {
   
   return (
     <Switch>
-      <Route path="/" component={token ? Dashboard : Login} />
+      <Route path="/" component={Home} />
       <Route path="/login" component={Login} />
       <Route path="/signup" component={Signup} />
-      <Route path="/dashboard" component={Dashboard} />
-      <Route path="/map" component={MapPage} />
+      <Route path="/dashboard" component={token ? Dashboard : Login} />
+      <Route path="/map" component={token ? MapPage : Login} />
       <Route component={NotFound} />
     </Switch>
   );
