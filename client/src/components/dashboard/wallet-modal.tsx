@@ -49,13 +49,6 @@ export function WalletModal({ open, onOpenChange, onConnect }: WalletModalProps)
         } else {
            throw new Error("Could not retrieve address");
         }
-      } else {
-        // Check if it was because extension is missing
-        if (!window.cardano?.eternl) {
-          throw new Error("Eternl extension not found. Please install it.");
-        } else {
-           throw new Error("Connection failed or rejected.");
-        }
       }
     } catch (error) {
       console.error(error);

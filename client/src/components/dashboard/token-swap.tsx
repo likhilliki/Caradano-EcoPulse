@@ -20,37 +20,28 @@ export function TokenSwap() {
     
     try {
       const walletService = WalletService.getInstance();
-      const lucid = walletService.getLucid();
 
-      if (!lucid) {
+      if (!walletService.isConnected()) {
         throw new Error("Wallet not connected. Please connect first.");
       }
 
       toast({
         title: "Building Transaction",
-        description: "Constructing transaction with Lucid...",
+        description: "Constructing transaction with Cardano...",
       });
 
-      // REAL CARDANO TRANSACTION LOGIC (Simplified for Demo)
-      // In a real scenario, this would interact with a smart contract.
-      // Here we will simulate a "self-send" of 1 Lovelace just to trigger the REAL wallet signature flow.
-      const address = await lucid.wallet.address();
-      
-      const tx = await lucid.newTx()
-        .payToAddress(address, { lovelace: BigInt(1000000) }) // Send 1 ADA to self as proof of life
-        .complete();
+      // Get wallet address
+      const address = await walletService.getAddress();
+      if (!address) {
+        throw new Error("Could not retrieve wallet address");
+      }
 
-      toast({
-        title: "Awaiting Signature",
-        description: "Please sign the transaction in your Eternl wallet.",
-      });
-
-      const signedTx = await tx.sign().complete();
-      const txHash = await signedTx.submit();
+      // Build and sign transaction (self-send 1 ADA to demonstrate signing)
+      const txHash = await walletService.buildAndSignTx(address, "1000000");
 
       toast({
         title: "Transaction Submitted!",
-        description: `Tx Hash: ${txHash.slice(0, 10)}...`,
+        description: `Tx Hash: ${txHash?.slice(0, 10) || 'pending'}...`,
         variant: "default",
       });
 

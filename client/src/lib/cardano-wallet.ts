@@ -7,6 +7,7 @@ export class WalletService {
   private static instance: WalletService;
   private lucid: Lucid | null = null;
   private walletApi: any = null;
+  private walletAddress: string | null = null;
 
   private constructor() {}
 
@@ -17,88 +18,121 @@ export class WalletService {
     return WalletService.instance;
   }
 
-  public async initialize() {
-    try {
-      // Check for required globals
-      if (typeof Buffer === 'undefined') {
-        throw new Error("Buffer is not defined. Polyfill missing.");
-      }
+  // Lazy initialization of Lucid - only when actually needed
+  private async initializeLucid() {
+    if (this.lucid) return; // Already initialized
 
+    try {
+      console.log("Initializing Lucid (lazy load)...");
       this.lucid = await Lucid.new(
         new Blockfrost(BLOCKFROST_API_URL, BLOCKFROST_PROJECT_ID),
         "Mainnet",
       );
+      
+      if (this.walletApi) {
+        this.lucid.selectWallet(this.walletApi);
+      }
       console.log("Lucid initialized successfully");
     } catch (error: any) {
       console.error("Failed to initialize Lucid:", error);
-      throw new Error(`Lucid Init Failed: ${error.message || JSON.stringify(error)}`);
+      throw new Error(`Lucid Init: ${error.message || 'Unknown error'}`);
     }
   }
 
   public async connectWallet(): Promise<boolean> {
-    // 1. Check if window.cardano exists
+    // Check if window.cardano exists
     if (!window.cardano) {
-      console.warn("window.cardano not found");
       throw new Error("No wallet extension found. Please install Eternl.");
     }
 
-    // 2. Check if Eternl specifically exists
+    // Check if Eternl specifically exists
     if (!window.cardano.eternl) {
-      console.warn("window.cardano.eternl not found");
-      // Fallback: List available wallets for debugging
       const available = Object.keys(window.cardano).filter(k => k !== 'eternl');
       throw new Error(`Eternl not found. Available: ${available.join(', ') || 'None'}`);
     }
 
     try {
       console.log("Requesting Eternl access...");
-      // 3. Enable wallet (CIP-30)
+      // Enable wallet (CIP-30)
       this.walletApi = await window.cardano.eternl.enable();
       console.log("Eternl access granted");
 
-      if (!this.lucid) {
-        console.log("Initializing Lucid...");
-        await this.initialize();
-      }
-
-      // 4. Select wallet in Lucid
-      if (this.lucid) {
-        this.lucid.selectWallet(this.walletApi);
-        console.log("Wallet selected in Lucid");
+      // Get address immediately to verify connection
+      const addresses = await this.walletApi.getUsedAddresses();
+      if (addresses && addresses.length > 0) {
+        this.walletAddress = addresses[0];
+        console.log("Wallet connected, address obtained");
         return true;
+      } else {
+        throw new Error("No addresses found in wallet");
       }
-      return false;
     } catch (error: any) {
       console.error("Failed to connect wallet:", error);
-      // CIP-30 errors are often objects like { code: -1, info: "User declined" }
       const msg = error.info || error.message || "Unknown connection error";
       throw new Error(`Connection Failed: ${msg}`);
     }
   }
 
   public async getAddress(): Promise<string | null> {
-    if (!this.lucid) return null;
-    try {
-      return await this.lucid.wallet.address();
-    } catch (error) {
-      console.error("Failed to get address:", error);
+    if (this.walletAddress) return this.walletAddress;
+
+    if (!this.walletApi) {
+      console.warn("Wallet not connected");
       return null;
     }
+
+    try {
+      const addresses = await this.walletApi.getUsedAddresses();
+      if (addresses && addresses.length > 0) {
+        this.walletAddress = addresses[0];
+        return this.walletAddress;
+      }
+    } catch (error) {
+      console.error("Failed to get address:", error);
+    }
+    return null;
   }
 
-  public async getBalance(): Promise<string | null> {
-    if (!this.walletApi) return null;
+  // Build and sign transaction - initializes Lucid only when needed
+  public async buildAndSignTx(toAddress: string, amount: string): Promise<string | null> {
+    if (!this.walletApi) {
+      throw new Error("Wallet not connected");
+    }
+
     try {
-      const balanceCBOR = await this.walletApi.getBalance();
-      return balanceCBOR; 
-    } catch (error) {
-      console.error("Failed to get balance:", error);
-      return null;
+      // Initialize Lucid now (lazy load)
+      await this.initializeLucid();
+
+      if (!this.lucid) {
+        throw new Error("Lucid not initialized");
+      }
+
+      const tx = await this.lucid.newTx()
+        .payToAddress(toAddress, { lovelace: BigInt(amount) })
+        .complete();
+
+      // Sign with wallet
+      console.log("Requesting wallet signature...");
+      const signedTx = await tx.sign().complete();
+
+      // Submit transaction
+      console.log("Submitting transaction...");
+      const txHash = await signedTx.submit();
+
+      console.log("Transaction submitted:", txHash);
+      return txHash;
+    } catch (error: any) {
+      console.error("Failed to build/sign transaction:", error);
+      throw new Error(`Transaction Error: ${error.message || 'Unknown error'}`);
     }
   }
 
   public getLucid(): Lucid | null {
     return this.lucid;
+  }
+
+  public isConnected(): boolean {
+    return this.walletApi !== null;
   }
 }
 
