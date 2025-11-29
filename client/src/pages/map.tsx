@@ -1,66 +1,129 @@
+import { useEffect, useState } from "react";
+import { MapContainer, TileLayer, Marker, Popup, useMap, Circle } from "react-leaflet";
+import "leaflet/dist/leaflet.css";
+import "@/lib/leaflet-custom.css";
+import { Icon } from "leaflet";
 import { Navbar } from "@/components/layout/navbar";
-import { Card } from "@/components/ui/card";
-import mapBg from "@assets/generated_images/dark_mode_map_interface_background.png";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Plus, Minus, Navigation } from "lucide-react";
+import { Loader2, Navigation } from "lucide-react";
+import { useAirQuality } from "@/hooks/use-air-quality";
+
+// Custom marker icon
+const customIcon = new Icon({
+  iconUrl: "https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon.png",
+  iconRetinaUrl: "https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon-2x.png",
+  shadowUrl: "https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png",
+  iconSize: [25, 41],
+  iconAnchor: [12, 41],
+  popupAnchor: [1, -34],
+  shadowSize: [41, 41]
+});
+
+// Component to update map center when position changes
+function MapUpdater({ center }: { center: [number, number] }) {
+  const map = useMap();
+  useEffect(() => {
+    map.flyTo(center, 13);
+  }, [center, map]);
+  return null;
+}
 
 export default function MapPage() {
+  const [position, setPosition] = useState<[number, number] | null>(null);
+  const [locationError, setLocationError] = useState<string | null>(null);
+  const { data: aqiData } = useAirQuality();
+
+  useEffect(() => {
+    if ("geolocation" in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          setPosition([pos.coords.latitude, pos.coords.longitude]);
+        },
+        (err) => {
+          console.error("Geolocation error:", err);
+          setLocationError("Could not get your location. Defaulting to London.");
+          // Default to London if permission denied
+          setPosition([51.505, -0.09]);
+        },
+        { enableHighAccuracy: true }
+      );
+    } else {
+      setLocationError("Geolocation not supported");
+      setPosition([51.505, -0.09]);
+    }
+  }, []);
+
+  if (!position) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <p className="text-muted-foreground">Acquiring satellite lock...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col overflow-hidden">
       <Navbar />
       
-      <div className="flex-1 relative">
-        {/* Fullscreen Map Background */}
-        <div className="absolute inset-0 bg-[#111]">
-          <img 
-            src={mapBg} 
-            alt="Global Air Quality Map" 
-            className="w-full h-full object-cover opacity-60"
+      <div className="flex-1 relative z-0">
+        <MapContainer 
+          center={position} 
+          zoom={13} 
+          scrollWheelZoom={true} 
+          className="w-full h-full absolute inset-0"
+        >
+          <TileLayer
+            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
           
-          {/* Overlay Gradient */}
-          <div className="absolute inset-0 bg-gradient-to-b from-background/50 via-transparent to-background/20 pointer-events-none" />
-        </div>
+          <MapUpdater center={position} />
 
-        {/* Floating Map Controls */}
-        <div className="absolute top-4 right-4 flex flex-col gap-2">
-          <Button size="icon" variant="secondary" className="h-10 w-10 rounded-lg bg-card/80 backdrop-blur-md border border-white/10 shadow-lg hover:bg-card">
-            <Plus className="h-5 w-5" />
-          </Button>
-          <Button size="icon" variant="secondary" className="h-10 w-10 rounded-lg bg-card/80 backdrop-blur-md border border-white/10 shadow-lg hover:bg-card">
-            <Minus className="h-5 w-5" />
-          </Button>
-          <Button size="icon" variant="secondary" className="h-10 w-10 rounded-lg bg-card/80 backdrop-blur-md border border-white/10 shadow-lg hover:bg-card mt-2">
-            <Navigation className="h-5 w-5 text-primary" />
-          </Button>
-        </div>
+          {/* User Location Marker */}
+          <Marker position={position} icon={customIcon}>
+            <Popup className="custom-popup">
+              <div className="p-2 min-w-[200px]">
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="font-bold text-sm">Your Location</h3>
+                  <Badge variant={aqiData?.aqi && aqiData.aqi <= 50 ? "default" : "destructive"}>
+                    AQI: {aqiData?.aqi || "Loading..."}
+                  </Badge>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Lat: {position[0].toFixed(4)}<br/>
+                  Long: {position[1].toFixed(4)}
+                </p>
+              </div>
+            </Popup>
+          </Marker>
 
-        {/* Map Markers (Mocked) */}
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
-           <div className="relative group cursor-pointer">
-             <div className="absolute -inset-4 bg-primary/20 rounded-full animate-ping" />
-             <div className="relative h-4 w-4 bg-primary rounded-full border-2 border-white shadow-[0_0_20px_hsl(var(--primary))]" />
-             
-             {/* Tooltip */}
-             <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 hidden group-hover:block w-48 animate-in fade-in slide-in-from-bottom-2">
-               <Card className="p-3 bg-card/95 backdrop-blur-xl border-white/10 shadow-2xl">
-                 <div className="text-xs font-bold text-muted-foreground uppercase mb-1">Your Location</div>
-                 <div className="flex justify-between items-center">
-                   <span className="font-bold text-white">AQI 42</span>
-                   <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20 text-[10px]">Excellent</Badge>
-                 </div>
-               </Card>
-             </div>
-           </div>
-        </div>
-        
-        {/* Random other markers */}
-        <div className="absolute top-1/3 left-1/3">
-           <div className="h-3 w-3 bg-yellow-500 rounded-full border-2 border-white/50 opacity-80 hover:opacity-100 cursor-pointer shadow-[0_0_10px_orange]" />
-        </div>
-        <div className="absolute bottom-1/3 right-1/4">
-           <div className="h-3 w-3 bg-green-500 rounded-full border-2 border-white/50 opacity-80 hover:opacity-100 cursor-pointer shadow-[0_0_10px_lime]" />
+          {/* Radius Circle showing coverage area */}
+          <Circle 
+            center={position}
+            pathOptions={{ fillColor: 'hsl(140 100% 60%)', color: 'hsl(140 100% 60%)' }}
+            radius={2000}
+          />
+        </MapContainer>
+
+        {/* Overlay UI */}
+        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-[1000] w-full max-w-md px-4">
+           <Card className="bg-card/90 backdrop-blur-xl border-primary/20 shadow-2xl">
+             <CardContent className="flex items-center gap-4 p-4">
+               <div className="h-10 w-10 rounded-full bg-primary/20 flex items-center justify-center shrink-0 animate-pulse">
+                 <Navigation className="h-5 w-5 text-primary" />
+               </div>
+               <div>
+                 <h4 className="font-bold text-white text-sm">Live Tracking Active</h4>
+                 <p className="text-xs text-muted-foreground">
+                   {locationError ? locationError : "Monitoring air quality in your zone."}
+                 </p>
+               </div>
+             </CardContent>
+           </Card>
         </div>
       </div>
     </div>

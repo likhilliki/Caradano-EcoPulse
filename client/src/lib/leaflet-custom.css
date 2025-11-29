@@ -1,0 +1,19 @@
+
+.leaflet-container {
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+  background: #1a1a1a;
+}
+
+/* Custom Dark Mode Map Tiles Filter */
+.leaflet-layer {
+  filter: invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%);
+}
+
+/* Fix for map controls in dark mode */
+.leaflet-control-zoom a {
+  background-color: hsl(var(--card)) !important;
+  color: hsl(var(--foreground)) !important;
+  border-color: hsl(var(--border)) !important;
+}
