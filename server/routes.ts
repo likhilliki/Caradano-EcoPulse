@@ -1,6 +1,6 @@
 import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
-import { generateOTP, hashPassword, generateJWT, getOTPExpiry, verifyJWT } from "./auth";
+import { generateOTP, hashPassword, verifyPassword, generateJWT, getOTPExpiry, verifyJWT } from "./auth";
 import { submitSignedTransaction } from "./cardano";
 
 // In-memory storage for authentication
