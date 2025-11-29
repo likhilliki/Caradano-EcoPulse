@@ -19,40 +19,60 @@ export class WalletService {
 
   public async initialize() {
     try {
+      // Check for required globals
+      if (typeof Buffer === 'undefined') {
+        throw new Error("Buffer is not defined. Polyfill missing.");
+      }
+
       this.lucid = await Lucid.new(
         new Blockfrost(BLOCKFROST_API_URL, BLOCKFROST_PROJECT_ID),
         "Mainnet",
       );
-      console.log("Lucid initialized");
-    } catch (error) {
+      console.log("Lucid initialized successfully");
+    } catch (error: any) {
       console.error("Failed to initialize Lucid:", error);
-      throw error;
+      throw new Error(`Lucid Init Failed: ${error.message || JSON.stringify(error)}`);
     }
   }
 
   public async connectWallet(): Promise<boolean> {
-    if (!window.cardano || !window.cardano.eternl) {
-      console.error("Eternl wallet not found");
-      return false;
+    // 1. Check if window.cardano exists
+    if (!window.cardano) {
+      console.warn("window.cardano not found");
+      throw new Error("No wallet extension found. Please install Eternl.");
+    }
+
+    // 2. Check if Eternl specifically exists
+    if (!window.cardano.eternl) {
+      console.warn("window.cardano.eternl not found");
+      // Fallback: List available wallets for debugging
+      const available = Object.keys(window.cardano).filter(k => k !== 'eternl');
+      throw new Error(`Eternl not found. Available: ${available.join(', ') || 'None'}`);
     }
 
     try {
-      // 1. Enable wallet (CIP-30)
+      console.log("Requesting Eternl access...");
+      // 3. Enable wallet (CIP-30)
       this.walletApi = await window.cardano.eternl.enable();
-      
+      console.log("Eternl access granted");
+
       if (!this.lucid) {
+        console.log("Initializing Lucid...");
         await this.initialize();
       }
 
-      // 2. Select wallet in Lucid
+      // 4. Select wallet in Lucid
       if (this.lucid) {
         this.lucid.selectWallet(this.walletApi);
+        console.log("Wallet selected in Lucid");
         return true;
       }
       return false;
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to connect wallet:", error);
-      return false;
+      // CIP-30 errors are often objects like { code: -1, info: "User declined" }
+      const msg = error.info || error.message || "Unknown connection error";
+      throw new Error(`Connection Failed: ${msg}`);
     }
   }
 
@@ -70,20 +90,11 @@ export class WalletService {
     if (!this.walletApi) return null;
     try {
       const balanceCBOR = await this.walletApi.getBalance();
-      // Note: This returns CBOR, would need parsing. 
-      // Lucid handles this better internally usually.
-      return balanceCBOR; // Simplified for this mock
+      return balanceCBOR; 
     } catch (error) {
       console.error("Failed to get balance:", error);
       return null;
     }
-  }
-
-  public async submitTx(txCBOR: string): Promise<string> {
-     // In a real app, we would submit here.
-     // Since we are mocking the swap logic but using real signing:
-     // this.lucid?.provider.submitTx(txCBOR)
-     return "mock_tx_hash_" + Date.now();
   }
 
   public getLucid(): Lucid | null {
