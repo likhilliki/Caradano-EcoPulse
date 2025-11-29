@@ -60,7 +60,16 @@ export class WalletService {
     }
 
     try {
-      console.log("Eternl detected, calling enable() - this will trigger popup");
+      console.log("Eternl API object:", window.cardano.eternl);
+      console.log("Eternl methods:", Object.keys(window.cardano.eternl));
+      
+      // Check if already enabled
+      if (window.cardano.eternl.isEnabled) {
+        const alreadyEnabled = await window.cardano.eternl.isEnabled();
+        console.log("Already enabled:", alreadyEnabled);
+      }
+      
+      console.log("Calling enable() - this should trigger Eternl popup");
       
       // Call enable() - this triggers the Eternl browser extension popup
       this.walletApi = await window.cardano.eternl.enable();

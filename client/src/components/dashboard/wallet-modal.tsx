@@ -26,11 +26,20 @@ export function WalletModal({ open, onOpenChange, onConnect }: WalletModalProps)
       console.log("window.cardano exists:", !!window.cardano);
       console.log("Available wallets:", window.cardano ? Object.keys(window.cardano) : "none");
       console.log("Eternl available:", !!window.cardano?.eternl);
+      console.log("Running in iframe:", window !== window.top);
+      console.log("Window location:", window.location.href);
       
       if (window.cardano?.eternl) {
-        console.log("✓ Eternl extension detected and ready");
+        console.log("✓ Eternl extension detected");
+        console.log("Eternl object:", window.cardano.eternl);
       } else {
         console.warn("⚠ Eternl extension NOT detected");
+      }
+      
+      // Warn if in iframe
+      if (window !== window.top) {
+        console.warn("⚠ Running in iframe - wallet extensions may not work properly");
+        console.warn("Try opening in new tab:", window.location.href);
       }
     }
   }, [open]);
