@@ -1,61 +1,73 @@
 import { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 
-const API_KEY = '83b5ed2103b77dc40c5988080c8080c24ecf6f315adbdd62781398787fcd86b5';
+// OpenWeatherMap Key provided by user
+const API_KEY = '5584fb6ac244cc84e0dbf23108b800ad'; // Updated to the key provided in the last turn as it's likely the correct OWM key
 
-export interface AQIData {
-  aqi: number;
-  city: {
-    name: string;
-    url: string;
+export interface WeatherData {
+  aqi: number; // 1 = Good, 5 = Very Poor
+  components: {
+    co: number;
+    no: number;
+    no2: number;
+    o3: number;
+    so2: number;
+    pm2_5: number;
+    pm10: number;
+    nh3: number;
   };
-  dominentpol: string;
-  iaqi: {
-    co?: { v: number };
-    h?: { v: number };
-    no2?: { v: number };
-    o3?: { v: number };
-    p?: { v: number };
-    pm10?: { v: number };
-    pm25?: { v: number };
-    so2?: { v: number };
-    t?: { v: number };
-    w?: { v: number };
-    wg?: { v: number };
-  };
-  time: {
-    s: string;
-    tz: string;
-    v: number;
+  weather: {
+    temp: number;
+    humidity: number;
+    wind_speed: number;
+    condition: string;
+    location: string;
   };
 }
 
 export function useAirQuality() {
-  const [data, setData] = useState<AQIData | null>(null);
+  const [data, setData] = useState<WeatherData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
 
-  const fetchAQI = async (lat: number, lon: number) => {
+  const fetchData = async (lat: number, lon: number) => {
     try {
       setLoading(true);
-      // Using AQICN feed API for geolocation
-      const response = await fetch(`https://api.waqi.info/feed/geo:${lat};${lon}/?token=${API_KEY}`);
-      const result = await response.json();
+      
+      // 1. Fetch Air Pollution Data
+      const pollutionRes = await fetch(
+        `https://api.openweathermap.org/data/2.5/air_pollution?lat=${lat}&lon=${lon}&appid=${API_KEY}`
+      );
+      const pollutionJson = await pollutionRes.json();
 
-      if (result.status === 'ok') {
-        setData(result.data);
+      // 2. Fetch Current Weather Data
+      const weatherRes = await fetch(
+        `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&units=metric&appid=${API_KEY}`
+      );
+      const weatherJson = await weatherRes.json();
+
+      if (pollutionJson.list && weatherJson.main) {
+        setData({
+          aqi: pollutionJson.list[0].main.aqi, // 1-5 scale
+          components: pollutionJson.list[0].components,
+          weather: {
+            temp: weatherJson.main.temp,
+            humidity: weatherJson.main.humidity,
+            wind_speed: weatherJson.wind.speed,
+            condition: weatherJson.weather[0].main,
+            location: weatherJson.name,
+          }
+        });
         setError(null);
       } else {
-        throw new Error(result.data || 'Failed to fetch AQI data');
+        throw new Error('Invalid API response');
       }
+
     } catch (err) {
+      console.error("API Error:", err);
       setError(err instanceof Error ? err.message : 'Unknown error');
-      toast({
-        title: "Error fetching air quality",
-        description: "Could not retrieve data for your location.",
-        variant: "destructive",
-      });
+      // Keep existing data if refresh fails
     } finally {
       setLoading(false);
     }
@@ -65,20 +77,12 @@ export function useAirQuality() {
     if ("geolocation" in navigator) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
-          fetchAQI(position.coords.latitude, position.coords.longitude);
+          fetchData(position.coords.latitude, position.coords.longitude);
         },
         (err) => {
           console.error("Geolocation error:", err);
-          setError("Location access denied. Showing demo data.");
-          // Fallback to a default location (e.g., San Francisco) if geolocation fails
-          // fetchAQI(37.7749, -122.4194); 
+          setError("Location access denied.");
           setLoading(false);
-          
-          toast({
-            title: "Location access denied",
-            description: "Please enable location services to see local air quality.",
-            variant: "default",
-          });
         }
       );
     } else {
@@ -87,11 +91,5 @@ export function useAirQuality() {
     }
   }, []);
 
-  return { data, loading, error, refetch: () => {
-    if ("geolocation" in navigator) {
-       navigator.geolocation.getCurrentPosition(
-        (position) => fetchAQI(position.coords.latitude, position.coords.longitude)
-       );
-    }
-  }};
+  return { data, loading, error };
 }

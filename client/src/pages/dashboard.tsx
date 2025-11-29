@@ -1,13 +1,15 @@
 import { Navbar } from "@/components/layout/navbar";
 import { AQICard } from "@/components/dashboard/aqi-card";
 import { TokenSwap } from "@/components/dashboard/token-swap";
+import { NetworkStatus } from "@/components/dashboard/network-status";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { MOCK_TRANSACTIONS, MOCK_AQI_HISTORY } from "@/lib/mock-data";
 import { LineChart, Line, ResponsiveContainer, XAxis, YAxis, Tooltip } from "recharts";
 import mapBg from "@assets/generated_images/dark_mode_map_interface_background.png";
-import { MapPin, RefreshCw, Share2 } from "lucide-react";
+import { MapPin, RefreshCw, Share2, ExternalLink } from "lucide-react";
 import { useState } from "react";
+import { Link } from "wouter";
 
 export default function Dashboard() {
   const [isRefresing, setIsRefreshing] = useState(false);
@@ -27,7 +29,7 @@ export default function Dashboard() {
             <h1 className="text-3xl font-heading font-bold text-white">Dashboard</h1>
             <div className="flex items-center gap-2 text-muted-foreground mt-1">
               <MapPin className="h-4 w-4 text-primary" />
-              <span>San Francisco, CA (Zone 4A)</span>
+              <span>Live Data Feed</span>
             </div>
           </div>
           <div className="flex gap-2">
@@ -42,28 +44,40 @@ export default function Dashboard() {
           </div>
         </div>
 
+        {/* Network Status Row */}
+        <div className="mb-6">
+          <NetworkStatus />
+        </div>
+
         <div className="grid lg:grid-cols-12 gap-6">
           {/* Left Column - Stats & Map */}
           <div className="lg:col-span-8 space-y-6">
             {/* Map Section */}
-            <Card className="glass-panel border-white/5 overflow-hidden h-[400px] relative group">
-              <div className="absolute inset-0 bg-black/20 z-10 pointer-events-none group-hover:bg-transparent transition-colors" />
-              <img 
-                src={mapBg} 
-                alt="Live Map" 
-                className="w-full h-full object-cover opacity-80"
-              />
-              <div className="absolute top-4 left-4 z-20 bg-black/80 backdrop-blur-md p-3 rounded-lg border border-primary/20">
-                 <div className="text-xs text-muted-foreground uppercase mb-1">Sensor Status</div>
-                 <div className="flex items-center gap-2 text-sm font-bold text-primary">
-                   <span className="relative flex h-2 w-2">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
-                      <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
-                    </span>
-                   Online • Node #8821
-                 </div>
-              </div>
-            </Card>
+            <Link href="/map">
+              <Card className="glass-panel border-white/5 overflow-hidden h-[400px] relative group cursor-pointer transition-all hover:border-primary/30">
+                <div className="absolute inset-0 bg-black/20 z-10 pointer-events-none group-hover:bg-transparent transition-colors" />
+                <img 
+                  src={mapBg} 
+                  alt="Live Map" 
+                  className="w-full h-full object-cover opacity-80 transition-transform duration-700 group-hover:scale-105"
+                />
+                <div className="absolute top-4 left-4 z-20 bg-black/80 backdrop-blur-md p-3 rounded-lg border border-primary/20">
+                   <div className="text-xs text-muted-foreground uppercase mb-1">Sensor Status</div>
+                   <div className="flex items-center gap-2 text-sm font-bold text-primary">
+                     <span className="relative flex h-2 w-2">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
+                      </span>
+                     Online • Live Feed
+                   </div>
+                </div>
+                <div className="absolute bottom-4 right-4 z-20 opacity-0 group-hover:opacity-100 transition-opacity">
+                   <Button size="sm" className="bg-primary text-primary-foreground">
+                     View Full Map <ExternalLink className="ml-2 h-3 w-3" />
+                   </Button>
+                </div>
+              </Card>
+            </Link>
 
             {/* History Chart */}
             <Card className="glass-panel border-white/5">
