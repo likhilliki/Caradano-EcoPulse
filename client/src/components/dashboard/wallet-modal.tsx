@@ -105,6 +105,11 @@ export function WalletModal({ open, onOpenChange, onConnect }: WalletModalProps)
                 <p className="text-sm text-green-400 font-bold">✓ Connected</p>
                 <p className="text-xs text-green-400/80 font-mono break-all">{address}</p>
                 <p className="text-sm text-green-400 font-bold mt-2">{balance.ada.toFixed(2)} ADA</p>
+                {balance.ada === 0 && (
+                  <div className="bg-yellow-500/10 border border-yellow-500/30 rounded p-2 mt-2">
+                    <p className="text-xs text-yellow-400">⚠️ Zero balance detected. Send at least 2 ADA to enable transactions.</p>
+                  </div>
+                )}
               </div>
             </div>
           ) : (

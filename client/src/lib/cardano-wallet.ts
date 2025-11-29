@@ -217,6 +217,15 @@ export class EternlWalletService {
       console.log("[ETERNL] === STARTING SWAP ===");
       console.log("[ETERNL] To: " + toAmount + " ADA");
       
+      // Check UTXOs first
+      console.log("[ETERNL] Checking wallet UTXOs...");
+      const utxos = await this.walletApi.getUtxos();
+      console.log("[ETERNL] Available UTXOs:", utxos?.length || 0);
+      
+      if (!utxos || utxos.length === 0) {
+        throw new Error("No UTXOs available. Please add ADA to your Eternl wallet first (minimum 2 ADA for fees)");
+      }
+
       const { Lucid, Blockfrost } = await import("lucid-cardano");
       console.log("[ETERNL] Initializing Lucid...");
       
@@ -240,20 +249,18 @@ export class EternlWalletService {
       const txHex = tx.toString();
       console.log("[ETERNL] ✓ Transaction built, hex length:", txHex.length);
 
-      // Sign and submit using Eternl's CIP-30 submitTx (bypasses Blockfrost)
+      // Sign and submit using Eternl's CIP-30 submitTx
       console.log("[ETERNL] Requesting submitTx from Eternl...");
       
-      if (this.walletApi.submitTx) {
-        console.log("[ETERNL] Using Eternl's submitTx method");
-        const txHash = await this.walletApi.submitTx(txHex);
-        console.log("[ETERNL] ✓ Transaction submitted via Eternl:", txHash);
-        return txHash;
-      } else {
-        console.log("[ETERNL] submitTx not available, signing manually...");
-        const signedTxHex = await this.signTransaction(txHex);
-        const txHash = await this.submitTransaction(signedTxHex);
-        return txHash;
+      if (!this.walletApi.submitTx) {
+        throw new Error("Eternl wallet submitTx method not available");
       }
+      
+      console.log("[ETERNL] Using Eternl's submitTx method (will trigger signature popup)");
+      const txHash = await this.walletApi.submitTx(txHex);
+      console.log("[ETERNL] ✓ Transaction submitted via Eternl:", txHash);
+      return txHash;
+      
     } catch (error: any) {
       console.error("[ETERNL] Swap failed:", error?.message || error);
       throw new Error(`Swap failed: ${error?.message || String(error)}`);
