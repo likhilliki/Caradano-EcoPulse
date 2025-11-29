@@ -20,7 +20,7 @@ export class WalletService {
 
   // Lazy initialization of Lucid - only when actually needed
   private async initializeLucid() {
-    if (this.lucid) return; // Already initialized
+    if (this.lucid) return;
 
     try {
       console.log("Initializing Lucid (lazy load)...");
@@ -55,16 +55,58 @@ export class WalletService {
       console.log("Requesting Eternl access...");
       // Enable wallet (CIP-30)
       this.walletApi = await window.cardano.eternl.enable();
-      console.log("Eternl access granted");
+      console.log("Eternl access granted, wallet API obtained");
 
-      // Get address immediately to verify connection
-      const addresses = await this.walletApi.getUsedAddresses();
+      // Try to get any available address
+      let addresses = null;
+      
+      try {
+        // First try getUsedAddresses
+        addresses = await this.walletApi.getUsedAddresses();
+        console.log("Got used addresses:", addresses?.length);
+      } catch (e) {
+        console.log("getUsedAddresses failed, trying getUnusedAddresses");
+      }
+
+      // If no used addresses, try unused
+      if (!addresses || (Array.isArray(addresses) && addresses.length === 0)) {
+        try {
+          addresses = await this.walletApi.getUnusedAddresses();
+          console.log("Got unused addresses:", addresses?.length);
+        } catch (e) {
+          console.log("getUnusedAddresses also failed");
+        }
+      }
+
+      // If still no addresses, try using getChangeAddress as fallback
+      if (!addresses || (Array.isArray(addresses) && addresses.length === 0)) {
+        try {
+          console.log("Trying getChangeAddress as fallback...");
+          const changeAddr = await this.walletApi.getChangeAddress();
+          if (changeAddr) {
+            addresses = [changeAddr];
+            console.log("Got change address as fallback");
+          }
+        } catch (e) {
+          console.log("getChangeAddress failed");
+        }
+      }
+
       if (addresses && addresses.length > 0) {
-        this.walletAddress = addresses[0];
-        console.log("Wallet connected, address obtained");
+        // Address comes as CBOR hex from CIP-30, need to decode
+        const firstAddr = addresses[0];
+        
+        // If it's a string (hex), try to decode it
+        if (typeof firstAddr === 'string') {
+          this.walletAddress = firstAddr;
+        } else {
+          this.walletAddress = firstAddr;
+        }
+        
+        console.log("Wallet connected successfully, address:", this.walletAddress?.slice(0, 20) + "...");
         return true;
       } else {
-        throw new Error("No addresses found in wallet");
+        throw new Error("No addresses available in wallet. Try sending some ADA to this wallet first.");
       }
     } catch (error: any) {
       console.error("Failed to connect wallet:", error);
@@ -82,7 +124,11 @@ export class WalletService {
     }
 
     try {
-      const addresses = await this.walletApi.getUsedAddresses();
+      let addresses = await this.walletApi.getUsedAddresses();
+      if (!addresses || addresses.length === 0) {
+        addresses = await this.walletApi.getUnusedAddresses();
+      }
+      
       if (addresses && addresses.length > 0) {
         this.walletAddress = addresses[0];
         return this.walletAddress;
@@ -132,7 +178,7 @@ export class WalletService {
   }
 
   public isConnected(): boolean {
-    return this.walletApi !== null;
+    return this.walletApi !== null && this.walletAddress !== null;
   }
 }
 
