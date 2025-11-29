@@ -10,15 +10,19 @@ export function TokenSwap() {
   const [fromAmount, setFromAmount] = useState("100");
   const [isSwapping, setIsSwapping] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [txHash, setTxHash] = useState<string | null>(null);
   const { toast } = useToast();
 
   // Mock exchange rate: 10 AIR = 1 ADA
   const exchangeRate = 0.1;
   const toAmount = (parseFloat(fromAmount || "0") * exchangeRate).toFixed(2);
+  // Convert ADA to Lovelace (1 ADA = 1,000,000 lovelace)
+  const lovelaceAmount = (parseFloat(toAmount) * 1_000_000).toString();
 
   const handleSwap = async () => {
     setIsSwapping(true);
     setSuccess(false);
+    setTxHash(null);
     
     try {
       const walletService = WalletService.getInstance();
@@ -29,35 +33,32 @@ export function TokenSwap() {
 
       toast({
         title: "Initiating Swap",
-        description: "Preparing transaction...",
+        description: "Building and signing transaction...",
       });
 
-      // Get wallet address
       const address = await walletService.getAddress();
       if (!address) {
         throw new Error("Could not retrieve wallet address");
       }
 
-      // Simulate transaction processing
-      // In production, this would use Lucid to build and sign a real transaction
-      await new Promise(resolve => setTimeout(resolve, 1500));
-
-      // Generate mock transaction hash
-      const mockTxHash = `${Date.now().toString(16)}${Math.random().toString(16).slice(2)}`.slice(0, 64);
+      // Execute real transaction
+      const hash = await walletService.executeSwap(address, lovelaceAmount);
+      
+      setTxHash(hash);
+      setSuccess(true);
 
       toast({
         title: "Swap Successful!",
-        description: `${fromAmount} AIR → ${toAmount} ADA\nTx: ${mockTxHash.slice(0, 12)}...`,
+        description: `${fromAmount} AIR → ${toAmount} ADA\nTx: ${hash.slice(0, 12)}...`,
         variant: "default",
       });
 
-      setSuccess(true);
-      
-      // Reset form after 3 seconds
+      // Reset form after 5 seconds
       setTimeout(() => {
         setFromAmount("100");
         setSuccess(false);
-      }, 3000);
+        setTxHash(null);
+      }, 5000);
 
     } catch (error) {
       console.error("Swap failed:", error);
@@ -114,6 +115,14 @@ export function TokenSwap() {
             <Coins className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-blue-400" />
           </div>
         </div>
+
+        {success && txHash && (
+          <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-3 text-xs">
+            <p className="text-green-400 font-bold mb-1">Transaction Confirmed</p>
+            <p className="text-green-400/80 font-mono break-all">{txHash}</p>
+            <p className="text-green-400/60 mt-2">Check Eternl wallet for incoming ADA</p>
+          </div>
+        )}
 
         <div className="pt-2">
           {success ? (
