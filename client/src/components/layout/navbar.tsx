@@ -8,10 +8,20 @@ import { WalletModal } from "@/components/dashboard/wallet-modal";
 export function Navbar() {
   const [location] = useLocation();
   const [isWalletOpen, setIsWalletOpen] = useState(false);
-  const [isConnected, setIsConnected] = useState(false);
+  const [connectedAddress, setConnectedAddress] = useState<string | null>(null);
 
   const handleConnect = () => {
-    setIsWalletOpen(true);
+    if (!connectedAddress) {
+      setIsWalletOpen(true);
+    }
+  };
+
+  const handleWalletConnected = (address: string) => {
+    setConnectedAddress(address);
+  };
+
+  const formatAddress = (addr: string) => {
+    return `${addr.slice(0, 8)}...${addr.slice(-4)}`;
   };
 
   return (
@@ -47,12 +57,12 @@ export function Navbar() {
           </Link>
           
           <Button 
-            variant={isConnected ? "outline" : "default"}
-            className={isConnected ? "border-primary/50 text-primary hover:bg-primary/10" : "bg-primary text-primary-foreground hover:bg-primary/90"}
+            variant={connectedAddress ? "outline" : "default"}
+            className={connectedAddress ? "border-primary/50 text-primary hover:bg-primary/10" : "bg-primary text-primary-foreground hover:bg-primary/90"}
             onClick={handleConnect}
           >
             <Wallet className="mr-2 h-4 w-4" />
-            {isConnected ? "eternal1...8z9" : "Connect Wallet"}
+            {connectedAddress ? formatAddress(connectedAddress) : "Connect Wallet"}
           </Button>
         </div>
 
@@ -73,7 +83,7 @@ export function Navbar() {
                   <a className="text-lg font-medium hover:text-primary">Dashboard</a>
                 </Link>
                 <Button onClick={handleConnect} className="w-full">
-                  Connect Wallet
+                  {connectedAddress ? "Wallet Connected" : "Connect Wallet"}
                 </Button>
               </div>
             </SheetContent>
@@ -84,7 +94,7 @@ export function Navbar() {
       <WalletModal 
         open={isWalletOpen} 
         onOpenChange={setIsWalletOpen} 
-        onConnect={() => setIsConnected(true)}
+        onConnect={handleWalletConnected}
       />
     </nav>
   );

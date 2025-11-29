@@ -1,22 +1,69 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ArrowRightLeft, Wind, Coins } from "lucide-react";
+import { ArrowRightLeft, Wind, Coins, Loader2 } from "lucide-react";
 import { useState } from "react";
+import { WalletService } from "@/lib/cardano-wallet";
+import { useToast } from "@/hooks/use-toast";
 
 export function TokenSwap() {
   const [fromAmount, setFromAmount] = useState("100");
   const [isSwapping, setIsSwapping] = useState(false);
+  const { toast } = useToast();
 
   // Mock exchange rate: 10 AIR = 1 ADA
   const exchangeRate = 0.1;
   const toAmount = (parseFloat(fromAmount || "0") * exchangeRate).toFixed(2);
 
-  const handleSwap = () => {
+  const handleSwap = async () => {
     setIsSwapping(true);
-    setTimeout(() => {
+    
+    try {
+      const walletService = WalletService.getInstance();
+      const lucid = walletService.getLucid();
+
+      if (!lucid) {
+        throw new Error("Wallet not connected. Please connect first.");
+      }
+
+      toast({
+        title: "Building Transaction",
+        description: "Constructing transaction with Lucid...",
+      });
+
+      // REAL CARDANO TRANSACTION LOGIC (Simplified for Demo)
+      // In a real scenario, this would interact with a smart contract.
+      // Here we will simulate a "self-send" of 1 Lovelace just to trigger the REAL wallet signature flow.
+      const address = await lucid.wallet.address();
+      
+      const tx = await lucid.newTx()
+        .payToAddress(address, { lovelace: BigInt(1000000) }) // Send 1 ADA to self as proof of life
+        .complete();
+
+      toast({
+        title: "Awaiting Signature",
+        description: "Please sign the transaction in your Eternl wallet.",
+      });
+
+      const signedTx = await tx.sign().complete();
+      const txHash = await signedTx.submit();
+
+      toast({
+        title: "Transaction Submitted!",
+        description: `Tx Hash: ${txHash.slice(0, 10)}...`,
+        variant: "default",
+      });
+
+    } catch (error) {
+      console.error("Swap failed:", error);
+      toast({
+        title: "Swap Failed",
+        description: error instanceof Error ? error.message : "Transaction rejected or failed",
+        variant: "destructive",
+      });
+    } finally {
       setIsSwapping(false);
-    }, 2000);
+    }
   };
 
   return (
@@ -68,7 +115,12 @@ export function TokenSwap() {
             onClick={handleSwap}
             disabled={isSwapping}
           >
-            {isSwapping ? "Swapping..." : "Swap Tokens"}
+            {isSwapping ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Processing...
+              </>
+            ) : "Swap Tokens"}
           </Button>
         </div>
       </CardContent>

@@ -1,41 +1,73 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Loader2, CheckCircle2 } from "lucide-react";
+import { Loader2, CheckCircle2, AlertCircle } from "lucide-react";
 import { useState, useEffect } from "react";
+import { WalletService } from "@/lib/cardano-wallet";
+import { useToast } from "@/hooks/use-toast";
 
 interface WalletModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onConnect: () => void;
+  onConnect: (address: string) => void;
 }
 
 export function WalletModal({ open, onOpenChange, onConnect }: WalletModalProps) {
-  const [status, setStatus] = useState<'idle' | 'connecting' | 'connected'>('idle');
+  const [status, setStatus] = useState<'idle' | 'connecting' | 'connected' | 'error'>('idle');
+  const [errorMsg, setErrorMsg] = useState<string>("");
+  const { toast } = useToast();
 
   useEffect(() => {
-    if (open) setStatus('idle');
+    if (open) {
+      setStatus('idle');
+      setErrorMsg("");
+    }
   }, [open]);
 
-  const connect = () => {
+  const connect = async () => {
     setStatus('connecting');
+    setErrorMsg("");
     
-    // Simulate real wallet connection delay
-    setTimeout(() => {
-      // In a real app, here we would check window.cardano
-      /*
-      if (window.cardano && window.cardano.eternl) {
-        window.cardano.eternl.enable().then(api => {
-            // Connection successful
-        });
+    try {
+      const walletService = WalletService.getInstance();
+      const success = await walletService.connectWallet();
+
+      if (success) {
+        const address = await walletService.getAddress();
+        if (address) {
+          setStatus('connected');
+          onConnect(address);
+          
+          toast({
+            title: "Wallet Connected",
+            description: "Successfully connected to Eternl.",
+            variant: "default",
+          });
+
+          setTimeout(() => {
+            onOpenChange(false);
+          }, 1000);
+        } else {
+           throw new Error("Could not retrieve address");
+        }
+      } else {
+        // Check if it was because extension is missing
+        if (!window.cardano?.eternl) {
+          throw new Error("Eternl extension not found. Please install it.");
+        } else {
+           throw new Error("Connection failed or rejected.");
+        }
       }
-      */
+    } catch (error) {
+      console.error(error);
+      setStatus('error');
+      setErrorMsg(error instanceof Error ? error.message : "Failed to connect");
       
-      setStatus('connected');
-      onConnect();
-      setTimeout(() => {
-        onOpenChange(false);
-      }, 1000);
-    }, 2000);
+      toast({
+        title: "Connection Failed",
+        description: error instanceof Error ? error.message : "Unknown error",
+        variant: "destructive",
+      });
+    }
   };
 
   return (
@@ -44,16 +76,18 @@ export function WalletModal({ open, onOpenChange, onConnect }: WalletModalProps)
         <DialogHeader>
           <DialogTitle className="text-xl font-heading">Connect Wallet</DialogTitle>
           <DialogDescription>
-            Connect your Eternal wallet to interact with the Cardano blockchain.
+            Connect your Eternl wallet to interact with the Cardano blockchain.
           </DialogDescription>
         </DialogHeader>
         
         <div className="grid gap-4 py-4">
           <Button 
             variant="outline" 
-            className="h-16 justify-start gap-4 border-white/10 hover:bg-white/5 hover:border-primary/50 transition-all group"
+            className={`h-16 justify-start gap-4 border-white/10 transition-all group ${
+              status === 'error' ? 'border-red-500/50 bg-red-500/10' : 'hover:bg-white/5 hover:border-primary/50'
+            }`}
             onClick={connect}
-            disabled={status !== 'idle'}
+            disabled={status === 'connecting' || status === 'connected'}
           >
             <div className="h-10 w-10 rounded-full bg-[#2b2b2b] flex items-center justify-center border border-white/10">
               {/* Mock Eternal Logo */}
@@ -65,11 +99,17 @@ export function WalletModal({ open, onOpenChange, onConnect }: WalletModalProps)
             </div>
             {status === 'connecting' && <Loader2 className="ml-auto h-5 w-5 animate-spin text-primary" />}
             {status === 'connected' && <CheckCircle2 className="ml-auto h-5 w-5 text-primary" />}
+            {status === 'error' && <AlertCircle className="ml-auto h-5 w-5 text-red-500" />}
           </Button>
           
-          {/* Only showing Eternal as requested */}
+          {status === 'error' && (
+            <div className="text-xs text-center text-red-400 animate-in fade-in">
+              {errorMsg}
+            </div>
+          )}
+          
           <div className="text-xs text-center text-muted-foreground mt-2">
-            Make sure you have the Eternal wallet extension installed.
+            Make sure you have the Eternl wallet extension installed and active.
           </div>
         </div>
       </DialogContent>
