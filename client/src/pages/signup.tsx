@@ -3,85 +3,64 @@ import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, Mail, Lock, CheckCircle2, Eye, EyeOff } from "lucide-react";
+import { Loader2, Mail, Lock, Eye, EyeOff } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 export default function Signup() {
   const [, navigate] = useLocation();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [otp, setOtp] = useState("");
-  const [stage, setStage] = useState<"form" | "verify">("form");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const { toast } = useToast();
 
   const handleSignup = async () => {
-    if (!email || !password) {
+    if (!email || !password || !confirmPassword) {
       toast({ title: "Error", description: "Please fill all fields", variant: "destructive" });
       return;
     }
 
     if (password.length < 8) {
-      toast({ title: "Error", description: "Password must be at least 8 characters", variant: "destructive" });
+      toast({
+        title: "Error",
+        description: "Password must be at least 8 characters",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      toast({
+        title: "Error",
+        description: "Passwords do not match",
+        variant: "destructive",
+      });
       return;
     }
 
     setLoading(true);
     try {
-      const res = await fetch("/api/auth/signup", {
+      const res = await fetch("/api/auth/signup-jwt", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
       });
 
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.message);
-      }
-
       const data = await res.json();
-      console.log("[TEST] OTP:", data.otp);
-      setStage("verify");
-      toast({ title: "Success", description: "OTP sent to your email" });
-    } catch (err) {
-      toast({
-        title: "Error",
-        description: err instanceof Error ? err.message : "Signup failed",
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleVerifyOTP = async () => {
-    if (!otp) {
-      toast({ title: "Error", description: "Please enter OTP", variant: "destructive" });
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const res = await fetch("/api/auth/verify-otp", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password, code: otp }),
-      });
 
       if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.message);
+        throw new Error(data.message || "Signup failed");
       }
 
-      const data = await res.json();
       localStorage.setItem("authToken", data.token);
       toast({ title: "Success", description: "Account created successfully!" });
       navigate("/dashboard");
     } catch (err) {
       toast({
         title: "Error",
-        description: err instanceof Error ? err.message : "Failed to verify OTP",
+        description: err instanceof Error ? err.message : "Signup failed",
         variant: "destructive",
       });
     } finally {
@@ -94,104 +73,81 @@ export default function Signup() {
       <Card className="w-full max-w-md glass-panel border-white/10">
         <CardHeader>
           <CardTitle className="text-2xl font-heading">Create Account</CardTitle>
-          <p className="text-sm text-muted-foreground mt-2">Secure OTP verification</p>
+          <p className="text-sm text-muted-foreground mt-2">Join the Eco-Cyberpunk dApp</p>
         </CardHeader>
         <CardContent className="space-y-4">
-          {stage === "form" ? (
-            <>
-              <div className="space-y-2">
-                <label className="text-xs font-medium text-muted-foreground">Email</label>
-                <div className="relative">
-                  <Input
-                    type="email"
-                    placeholder="your@email.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    disabled={loading}
-                    className="bg-black/20 border-white/10 pl-10"
-                    data-testid="input-signup-email"
-                  />
-                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-primary" />
-                </div>
-              </div>
+          <div className="space-y-2">
+            <label className="text-xs font-medium text-muted-foreground">Email</label>
+            <div className="relative">
+              <Input
+                type="email"
+                placeholder="your@email.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                disabled={loading}
+                className="bg-black/20 border-white/10 pl-10"
+                data-testid="input-signup-email"
+              />
+              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-primary" />
+            </div>
+          </div>
 
-              <div className="space-y-2">
-                <label className="text-xs font-medium text-muted-foreground">Password</label>
-                <div className="relative">
-                  <Input
-                    type={showPassword ? "text" : "password"}
-                    placeholder="••••••••"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    disabled={loading}
-                    className="bg-black/20 border-white/10 pl-10 pr-10"
-                    data-testid="input-password"
-                  />
-                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-primary" />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-primary"
-                  >
-                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </button>
-                </div>
-                <p className="text-xs text-muted-foreground">Min 8 characters</p>
-              </div>
-
-              <Button
-                onClick={handleSignup}
-                disabled={loading || !email || !password}
-                className="w-full bg-primary hover:bg-primary/90"
-                data-testid="button-signup-submit"
+          <div className="space-y-2">
+            <label className="text-xs font-medium text-muted-foreground">Password</label>
+            <div className="relative">
+              <Input
+                type={showPassword ? "text" : "password"}
+                placeholder="••••••••"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                disabled={loading}
+                className="bg-black/20 border-white/10 pl-10 pr-10"
+                data-testid="input-password"
+              />
+              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-primary" />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-primary"
               >
-                {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                Send OTP
-              </Button>
-            </>
-          ) : (
-            <>
-              <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-3 mb-4">
-                <p className="text-xs text-green-400">Verification sent to: {email}</p>
-              </div>
+                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
+          </div>
 
-              <div className="space-y-2">
-                <label className="text-xs font-medium text-muted-foreground">Enter OTP Code</label>
-                <Input
-                  type="text"
-                  placeholder="000000"
-                  value={otp}
-                  onChange={(e) => setOtp(e.target.value.toUpperCase().slice(0, 6))}
-                  disabled={loading}
-                  maxLength={6}
-                  className="bg-black/20 border-white/10 text-center font-mono text-lg"
-                  data-testid="input-signup-otp"
-                />
-              </div>
-
-              <Button
-                onClick={handleVerifyOTP}
-                disabled={loading || otp.length !== 6}
-                className="w-full bg-primary hover:bg-primary/90"
-                data-testid="button-verify-signup"
+          <div className="space-y-2">
+            <label className="text-xs font-medium text-muted-foreground">Confirm Password</label>
+            <div className="relative">
+              <Input
+                type={showConfirmPassword ? "text" : "password"}
+                placeholder="••••••••"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                disabled={loading}
+                className="bg-black/20 border-white/10 pl-10 pr-10"
+                data-testid="input-confirm-password"
+              />
+              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-primary" />
+              <button
+                type="button"
+                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-primary"
               >
-                {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
-                Verify & Create Account
-              </Button>
+                {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
+            <p className="text-xs text-muted-foreground">Min 8 characters</p>
+          </div>
 
-              <Button
-                onClick={() => {
-                  setStage("form");
-                  setOtp("");
-                }}
-                variant="outline"
-                className="w-full border-white/10 hover:bg-white/5"
-                data-testid="button-back-signup"
-              >
-                Back
-              </Button>
-            </>
-          )}
+          <Button
+            onClick={handleSignup}
+            disabled={loading || !email || !password || !confirmPassword}
+            className="w-full bg-primary hover:bg-primary/90"
+            data-testid="button-signup"
+          >
+            {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+            Create Account
+          </Button>
 
           <div className="relative">
             <div className="absolute inset-0 flex items-center">
@@ -206,7 +162,7 @@ export default function Signup() {
             onClick={() => navigate("/login")}
             variant="outline"
             className="w-full border-primary/50 text-primary hover:bg-primary/10"
-            data-testid="button-login"
+            data-testid="button-login-link"
           >
             Login
           </Button>

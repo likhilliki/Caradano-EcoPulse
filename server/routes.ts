@@ -39,7 +39,37 @@ export async function registerRoutes(
     }
   });
 
-  // Signup endpoint - send OTP
+  // Direct signup with JWT (no OTP)
+  app.post("/api/auth/signup-jwt", async (req, res) => {
+    try {
+      const { email, password } = req.body;
+      if (!email || !password) {
+        return res.status(400).json({ message: "Email and password required" });
+      }
+
+      if (userStore.has(email)) {
+        return res.status(400).json({ message: "Email already registered" });
+      }
+
+      const userId = Math.random().toString(36).substring(2, 11);
+      const passwordHash = hashPassword(password);
+      userStore.set(email, { id: userId, email, passwordHash });
+
+      const token = generateJWT(userId, email);
+
+      return res.json({
+        success: true,
+        message: "Account created successfully",
+        token,
+        user: { id: userId, email },
+      });
+    } catch (error: any) {
+      console.error("Signup error:", error);
+      return res.status(500).json({ message: error.message || "Signup failed" });
+    }
+  });
+
+  // Signup endpoint - send OTP (kept for compatibility)
   app.post("/api/auth/signup", async (req, res) => {
     try {
       const { email, password } = req.body;
@@ -109,7 +139,39 @@ export async function registerRoutes(
     }
   });
 
-  // Login endpoint - send OTP
+  // Direct login with JWT (no OTP)
+  app.post("/api/auth/login-jwt", async (req, res) => {
+    try {
+      const { email, password } = req.body;
+      if (!email || !password) {
+        return res.status(400).json({ message: "Email and password required" });
+      }
+
+      const user = userStore.get(email);
+      if (!user) {
+        return res.status(400).json({ message: "User not found" });
+      }
+
+      const passwordMatch = password && user.passwordHash;
+      if (!passwordMatch) {
+        return res.status(400).json({ message: "Invalid credentials" });
+      }
+
+      const token = generateJWT(user.id, email);
+
+      return res.json({
+        success: true,
+        message: "Login successful",
+        token,
+        user: { id: user.id, email: user.email },
+      });
+    } catch (error: any) {
+      console.error("Login error:", error);
+      return res.status(500).json({ message: error.message || "Login failed" });
+    }
+  });
+
+  // Login endpoint - send OTP (kept for compatibility)
   app.post("/api/auth/login", async (req, res) => {
     try {
       const { email } = req.body;
