@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { hashPassword, verifyPassword, generateJWT, verifyJWT } from "./auth";
 import { submitSignedTransaction } from "./cardano";
-import { autoVerifyCurrentAQI, processReward, getUserVerificationStats } from "./agent";
+import { autoVerifyCurrentAQI, processReward, getUserVerificationStats } from "./agents";
 
 export function authMiddleware(req: Request, res: Response, next: any) {
   const token = req.headers.authorization?.split(" ")[1];
