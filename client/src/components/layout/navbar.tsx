@@ -1,17 +1,18 @@
 import { useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
-import { Wallet, Menu, X, ShieldCheck } from "lucide-react";
+import { Wallet, Menu, X, ShieldCheck, LogOut } from "lucide-react";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { WalletModal } from "@/components/dashboard/wallet-modal";
 import { EternlWalletService } from "@/lib/cardano-wallet";
 
 export function Navbar() {
-  const [location] = useLocation();
+  const [location, navigate] = useLocation();
   const [isWalletOpen, setIsWalletOpen] = useState(false);
   const [connectedAddress, setConnectedAddress] = useState<string | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
 
-  // Check if wallet is already connected on mount
+  // Check if wallet is already connected and if user is authenticated
   useEffect(() => {
     const checkWallet = async () => {
       const walletService = EternlWalletService.getInstance();
@@ -22,6 +23,10 @@ export function Navbar() {
         }
       }
     };
+    
+    const token = localStorage.getItem("authToken");
+    setIsAuthenticated(!!token);
+    
     checkWallet();
   }, []);
 
@@ -37,6 +42,14 @@ export function Navbar() {
 
   const formatAddress = (addr: string) => {
     return `${addr.slice(0, 8)}...${addr.slice(-4)}`;
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem("authToken");
+    localStorage.removeItem("connectedWallet");
+    setIsAuthenticated(false);
+    setConnectedAddress(null);
+    navigate("/");
   };
 
   return (
@@ -56,21 +69,38 @@ export function Navbar() {
           <Link href="/" className={`text-sm font-medium transition-colors hover:text-primary ${location === '/' ? 'text-primary' : 'text-muted-foreground'}`}>
             Home
           </Link>
-          <Link href="/dashboard" className={`text-sm font-medium transition-colors hover:text-primary ${location === '/dashboard' ? 'text-primary' : 'text-muted-foreground'}`}>
-            Dashboard
-          </Link>
-          <Link href="/map" className="text-sm font-medium text-muted-foreground transition-colors hover:text-primary">
-            Live Map
-          </Link>
+          {isAuthenticated && (
+            <>
+              <Link href="/dashboard" className={`text-sm font-medium transition-colors hover:text-primary ${location === '/dashboard' ? 'text-primary' : 'text-muted-foreground'}`}>
+                Dashboard
+              </Link>
+              <Link href="/map" className="text-sm font-medium text-muted-foreground transition-colors hover:text-primary">
+                Live Map
+              </Link>
+            </>
+          )}
           
           <Button 
             variant={connectedAddress ? "outline" : "default"}
             className={connectedAddress ? "border-primary/50 text-primary hover:bg-primary/10" : "bg-primary text-primary-foreground hover:bg-primary/90"}
             onClick={handleConnect}
+            data-testid="button-connect-wallet-nav"
           >
             <Wallet className="mr-2 h-4 w-4" />
             {connectedAddress ? formatAddress(connectedAddress) : "Connect Wallet"}
           </Button>
+
+          {isAuthenticated && (
+            <Button
+              variant="ghost"
+              className="text-red-400 hover:text-red-500 hover:bg-red-500/10"
+              onClick={handleLogout}
+              data-testid="button-logout"
+            >
+              <LogOut className="mr-2 h-4 w-4" />
+              Logout
+            </Button>
+          )}
         </div>
 
         {/* Mobile Nav */}
@@ -86,12 +116,25 @@ export function Navbar() {
                 <Link href="/" className="text-lg font-medium hover:text-primary">
                   Home
                 </Link>
-                <Link href="/dashboard" className="text-lg font-medium hover:text-primary">
-                  Dashboard
-                </Link>
+                {isAuthenticated && (
+                  <>
+                    <Link href="/dashboard" className="text-lg font-medium hover:text-primary">
+                      Dashboard
+                    </Link>
+                    <Link href="/map" className="text-lg font-medium hover:text-primary">
+                      Live Map
+                    </Link>
+                  </>
+                )}
                 <Button onClick={handleConnect} className="w-full">
                   {connectedAddress ? "Wallet Connected" : "Connect Wallet"}
                 </Button>
+                {isAuthenticated && (
+                  <Button onClick={handleLogout} variant="outline" className="w-full border-red-500/30 text-red-400 hover:bg-red-500/10">
+                    <LogOut className="mr-2 h-4 w-4" />
+                    Logout
+                  </Button>
+                )}
               </div>
             </SheetContent>
           </Sheet>
