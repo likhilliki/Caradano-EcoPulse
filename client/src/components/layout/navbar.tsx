@@ -49,7 +49,7 @@ export function Navbar() {
     localStorage.removeItem("connectedWallet");
     setIsAuthenticated(false);
     setConnectedAddress(null);
-    navigate("/");
+    navigate("/login");
   };
 
   return (
