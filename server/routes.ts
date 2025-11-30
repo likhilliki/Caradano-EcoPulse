@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { hashPassword, verifyPassword, generateJWT, verifyJWT } from "./auth";
 import { submitSignedTransaction } from "./cardano";
+import { verifyAQISubmission, processReward, getUserVerificationStats } from "./agent";
 
 export function authMiddleware(req: Request, res: Response, next: any) {
   const token = req.headers.authorization?.split(" ")[1];
@@ -112,6 +113,62 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     try {
       const readings = await storage.getAQIReadings((req as any).user.userId);
       res.json({ readings });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // Submit AQI data to Masumi Agent for verification
+  app.post("/api/agent/submit", authMiddleware, async (req, res) => {
+    try {
+      const { latitude, longitude, aqi, source } = req.body;
+      const userId = (req as any).user.userId;
+
+      if (!latitude || !longitude || aqi === undefined) {
+        return res.status(400).json({ message: "Missing required fields" });
+      }
+
+      // Verify with Masumi Agent
+      const verification = await verifyAQISubmission(userId, latitude, longitude, aqi, source);
+
+      if (!verification.verified) {
+        return res.status(400).json({
+          success: false,
+          message: verification.reason,
+          score: verification.score,
+        });
+      }
+
+      // Process reward
+      const submission = await storage.createAgentSubmission(userId, latitude, longitude, aqi, source || "user_manual");
+      await processReward(userId, submission.id, verification.tokensAwarded, verification.score);
+
+      res.json({
+        success: true,
+        message: verification.reason,
+        tokensAwarded: verification.tokensAwarded,
+        score: verification.score,
+      });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // Get user's verification stats
+  app.get("/api/agent/stats", authMiddleware, async (req, res) => {
+    try {
+      const stats = await getUserVerificationStats((req as any).user.userId);
+      res.json(stats);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // Get user verification history
+  app.get("/api/agent/verifications", authMiddleware, async (req, res) => {
+    try {
+      const verifications = await storage.getAgentVerifications((req as any).user.userId);
+      res.json({ verifications });
     } catch (err: any) {
       res.status(500).json({ message: err.message });
     }

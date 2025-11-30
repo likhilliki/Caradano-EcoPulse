@@ -3,6 +3,7 @@ import { AQICard } from "@/components/dashboard/aqi-card";
 import { TokenSwap } from "@/components/dashboard/token-swap";
 import { NetworkStatus } from "@/components/dashboard/network-status";
 import { WalletImport } from "@/components/dashboard/wallet-import";
+import { AgentVerification } from "@/components/dashboard/agent-verification";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { MOCK_TRANSACTIONS, MOCK_AQI_HISTORY } from "@/lib/mock-data";
@@ -55,6 +56,8 @@ export default function Dashboard() {
           <div className="lg:col-span-8 space-y-6">
             {/* Wallet Import */}
             <WalletImport />
+            {/* Agent Verification */}
+            <AgentVerification />
             {/* Map Section */}
             <Link href="/map">
               <Card className="glass-panel border-white/5 overflow-hidden h-[400px] relative group cursor-pointer transition-all hover:border-primary/30">
