@@ -1,20 +1,25 @@
 import { db } from "./storage";
 import * as schema from "@shared/schema";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 
 /**
- * Masumi Agent System
- * Autonomous verification and reward distribution
+ * Masumi Agent System - Autonomous AQI Monitoring & Token Rewards
+ * Auto-collects hourly AQI data and awards tokens based on air quality
  */
 
-// Agent configuration
+// Updated token reward system - cleaner air = more tokens
 const AGENT_CONFIG = {
-  baseReward: 10, // Base tokens for valid submission
-  cleanAirBonus: 5, // Bonus for clean air (AQI < 50)
-  moderateBonus: 3, // Bonus for moderate air (AQI 50-100)
-  aqiThreshold: 500, // Max valid AQI
-  duplicateCheckRadius: 0.5, // km - check for duplicate submissions nearby
-  minTimeBetweenSubmissions: 600000, // 10 minutes in ms
+  // AQI Levels: 0-50 (Good), 51-100 (Moderate), 101-150 (Unhealthy for Sensitive), 151-200 (Unhealthy), 200+ (Very Unhealthy)
+  rewards: {
+    excellent: 50, // AQI 0-25 (Excellent - cleanest air)
+    good: 35, // AQI 26-50 (Good)
+    moderate: 20, // AQI 51-100 (Moderate)
+    unhealthySensitive: 10, // AQI 101-150 (Unhealthy for Sensitive Groups)
+    unhealthy: 5, // AQI 151-200 (Unhealthy)
+    veryUnhealthy: 3, // AQI 200+ (Very Unhealthy)
+  },
+  hourlyCheckInterval: 3600000, // 1 hour in ms (3600000)
+  minTimeBetweenVerifications: 3600000, // 1 hour minimum
 };
 
 interface VerificationResult {
@@ -25,90 +30,79 @@ interface VerificationResult {
 }
 
 /**
- * Verify AQI data submission using Masumi Agent logic
+ * Calculate tokens based on AQI level (cleaner air = more tokens)
  */
-export async function verifyAQISubmission(
+function calculateTokensByAQI(aqi: number): { tokens: number; level: string } {
+  if (aqi <= 25) return { tokens: AGENT_CONFIG.rewards.excellent, level: "Excellent" };
+  if (aqi <= 50) return { tokens: AGENT_CONFIG.rewards.good, level: "Good" };
+  if (aqi <= 100) return { tokens: AGENT_CONFIG.rewards.moderate, level: "Moderate" };
+  if (aqi <= 150) return { tokens: AGENT_CONFIG.rewards.unhealthySensitive, level: "Unhealthy for Sensitive" };
+  if (aqi <= 200) return { tokens: AGENT_CONFIG.rewards.unhealthy, level: "Unhealthy" };
+  return { tokens: AGENT_CONFIG.rewards.veryUnhealthy, level: "Very Unhealthy" };
+}
+
+/**
+ * Auto-verify current AQI data (called every hour)
+ */
+export async function autoVerifyCurrentAQI(
   userId: string,
   latitude: string,
   longitude: string,
   aqi: number,
-  source: string = "openweathermap"
+  location: string
 ): Promise<VerificationResult> {
-  console.log(`[AGENT] Verifying submission from user ${userId}: AQI=${aqi}`);
+  console.log(`[AGENT] Auto-verifying hourly AQI for user ${userId}: AQI=${aqi} at ${location}`);
 
-  // 1. Basic validation
-  if (aqi < 0 || aqi > AGENT_CONFIG.aqiThreshold) {
+  // 1. Validate AQI
+  if (aqi < 0 || aqi > 500) {
     return {
       verified: false,
       score: 0,
       tokensAwarded: 0,
-      reason: `Invalid AQI value: ${aqi}. Must be between 0-${AGENT_CONFIG.aqiThreshold}`,
+      reason: `Invalid AQI: ${aqi}`,
     };
   }
 
-  // 2. Check for duplicate submissions (same location within 10 minutes)
-  const recentSubmissions = await db
+  // 2. Check if user already has a verification in the last hour
+  const lastHour = new Date(Date.now() - AGENT_CONFIG.minTimeBetweenVerifications);
+  const recentVerifications = await db
     .select()
-    .from(schema.agentSubmissions)
-    .where(eq(schema.agentSubmissions.userId, userId));
+    .from(schema.agentVerifications)
+    .where(
+      and(
+        eq(schema.agentVerifications.userId, userId),
+        eq(schema.agentVerifications.status, "verified")
+      )
+    );
 
-  const lastSubmission = recentSubmissions[recentSubmissions.length - 1];
-  if (lastSubmission) {
-    const timeDiff = Date.now() - (lastSubmission.submittedAt?.getTime() || 0);
-    const locationMatch =
-      lastSubmission.latitude === latitude && lastSubmission.longitude === longitude;
-
-    if (locationMatch && timeDiff < AGENT_CONFIG.minTimeBetweenSubmissions) {
-      return {
-        verified: false,
-        score: 0,
-        tokensAwarded: 0,
-        reason: "Duplicate submission too soon. Wait 10 minutes before re-submitting.",
-      };
-    }
+  const lastVerif = recentVerifications[recentVerifications.length - 1];
+  if (lastVerif && lastVerif.verifiedAt && new Date(lastVerif.verifiedAt) > lastHour) {
+    return {
+      verified: false,
+      score: 90,
+      tokensAwarded: 0,
+      reason: "Already verified within the last hour",
+    };
   }
 
-  // 3. Calculate verification score and tokens
-  let score = 100; // Start with perfect score
-  let tokensAwarded = AGENT_CONFIG.baseReward;
+  // 3. Calculate score and tokens based on AQI
+  let score = 100;
+  const { tokens, level } = calculateTokensByAQI(aqi);
 
-  // Deduct points if AQI looks unusual (very extreme values)
-  if (aqi > 300) {
-    score -= 10;
+  // Bonus for consistent monitoring
+  if (recentVerifications.length > 0) {
+    score = Math.min(100, score + 5);
   }
 
-  // Add bonus tokens for clean air data (incentivizes monitoring)
-  if (aqi < 50) {
-    tokensAwarded += AGENT_CONFIG.cleanAirBonus;
-  } else if (aqi < 100) {
-    tokensAwarded += AGENT_CONFIG.moderateBonus;
-  }
-
-  // Data source reputation check
-  const approvedSources = ["openweathermap", "user_manual", "sensor_network"];
-  if (!approvedSources.includes(source)) {
-    score -= 5;
-  }
-
-  // 4. Create agent submission record
-  const submission = await db
-    .insert(schema.agentSubmissions)
-    .values({
-      userId,
-      latitude,
-      longitude,
-      aqi,
-      source,
-    })
-    .returning();
-
-  console.log(`[AGENT] ✓ Submission verified: Score=${score}, Tokens=${tokensAwarded}`);
+  console.log(
+    `[AGENT] ✓ Auto-verified: AQI=${aqi} (${level}), Tokens=${tokens}, Score=${score}`
+  );
 
   return {
     verified: true,
-    score: Math.max(0, score),
-    tokensAwarded,
-    reason: `AQI data verified by Masumi Agent. Score: ${score}/100`,
+    score,
+    tokensAwarded: tokens,
+    reason: `Hourly AQI check: ${level} air quality (${aqi}). +${tokens} ECO tokens awarded!`,
   };
 }
 
@@ -119,18 +113,20 @@ export async function processReward(
   userId: string,
   submissionId: string,
   tokensAwarded: number,
-  verificationScore: number
+  verificationScore: number,
+  location: string,
+  aqi: number
 ): Promise<boolean> {
   try {
     console.log(`[AGENT] Processing reward: ${tokensAwarded} tokens for user ${userId}`);
 
-    // Create verification record
-    const aqiReading = await db
+    // Get submission details
+    const submission = await db
       .select()
       .from(schema.agentSubmissions)
       .where(eq(schema.agentSubmissions.id, submissionId));
 
-    if (!aqiReading[0]) {
+    if (!submission[0]) {
       console.error("[AGENT] Submission not found");
       return false;
     }
@@ -140,9 +136,9 @@ export async function processReward(
       .insert(schema.aqiReadings)
       .values({
         userId,
-        latitude: aqiReading[0].latitude,
-        longitude: aqiReading[0].longitude,
-        aqi: aqiReading[0].aqi,
+        latitude: submission[0].latitude,
+        longitude: submission[0].longitude,
+        aqi: submission[0].aqi,
       })
       .returning();
 
@@ -160,13 +156,10 @@ export async function processReward(
       .returning();
 
     // Award tokens
-    const tokenResult = await db
-      .insert(schema.tokens)
-      .values({
-        userId,
-        amount: tokensAwarded,
-      })
-      .returning();
+    await db.insert(schema.tokens).values({
+      userId,
+      amount: tokensAwarded,
+    });
 
     console.log(`[AGENT] ✓ Reward processed: ${tokensAwarded} tokens awarded`);
     return true;
@@ -205,7 +198,6 @@ export async function getUserVerificationStats(userId: string) {
 
 /**
  * Batch process pending verifications
- * Can be called by a cron job or background task
  */
 export async function processPendingVerifications() {
   console.log("[AGENT] Processing pending verifications...");
@@ -219,7 +211,6 @@ export async function processPendingVerifications() {
 
   for (const verification of pending) {
     try {
-      // Update status to verified
       await db
         .update(schema.agentVerifications)
         .set({ status: "verified", verifiedAt: new Date() })

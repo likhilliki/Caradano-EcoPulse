@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { hashPassword, verifyPassword, generateJWT, verifyJWT } from "./auth";
 import { submitSignedTransaction } from "./cardano";
-import { verifyAQISubmission, processReward, getUserVerificationStats } from "./agent";
+import { autoVerifyCurrentAQI, processReward, getUserVerificationStats } from "./agent";
 
 export function authMiddleware(req: Request, res: Response, next: any) {
   const token = req.headers.authorization?.split(" ")[1];
@@ -118,18 +118,18 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
-  // Submit AQI data to Masumi Agent for verification
+  // Auto-verify hourly AQI data (called by agent)
   app.post("/api/agent/submit", authMiddleware, async (req, res) => {
     try {
-      const { latitude, longitude, aqi, source } = req.body;
+      const { latitude, longitude, aqi, location } = req.body;
       const userId = (req as any).user.userId;
 
       if (!latitude || !longitude || aqi === undefined) {
         return res.status(400).json({ message: "Missing required fields" });
       }
 
-      // Verify with Masumi Agent
-      const verification = await verifyAQISubmission(userId, latitude, longitude, aqi, source);
+      // Auto-verify with Masumi Agent
+      const verification = await autoVerifyCurrentAQI(userId, latitude, longitude, aqi, location || "Current Location");
 
       if (!verification.verified) {
         return res.status(400).json({
@@ -140,8 +140,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       }
 
       // Process reward
-      const submission = await storage.createAgentSubmission(userId, latitude, longitude, aqi, source || "user_manual");
-      await processReward(userId, submission.id, verification.tokensAwarded, verification.score);
+      const submission = await storage.createAgentSubmission(userId, latitude, longitude, aqi, "openweathermap");
+      await processReward(userId, submission.id, verification.tokensAwarded, verification.score, location || "Current Location", aqi);
 
       res.json({
         success: true,
