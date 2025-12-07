@@ -5,6 +5,9 @@ import { hashPassword, verifyPassword, generateJWT, verifyJWT } from "./auth";
 import { submitSignedTransaction } from "./cardano";
 import { autoVerifyCurrentAQI, processReward, getUserVerificationStats } from "./agents";
 
+// In-memory user store for JWT auth
+const userStore = new Map<string, { id: string; email: string; passwordHash: string }>();
+
 export function authMiddleware(req: Request, res: Response, next: any) {
   const token = req.headers.authorization?.split(" ")[1];
   if (!token) {
@@ -19,8 +22,8 @@ export function authMiddleware(req: Request, res: Response, next: any) {
 }
 
 export async function registerRoutes(httpServer: Server, app: Express): Promise<Server> {
-  // SIGNUP
-  app.post("/api/auth/signup", async (req, res) => {
+  // SIGNUP with JWT (in-memory)
+  app.post("/api/auth/signup-jwt", async (req, res) => {
     try {
       const { email, password } = req.body;
 
@@ -28,23 +31,30 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         return res.status(400).json({ message: "Email and password required" });
       }
 
-      const existing = await storage.getUserByEmail(email);
-      if (existing) {
-        return res.status(400).json({ message: "Email already exists" });
+      if (userStore.has(email)) {
+        return res.status(400).json({ message: "Email already registered" });
       }
 
-      const hash = hashPassword(password);
-      const user = await storage.createUser(email, hash);
-      const token = generateJWT(user.id, email);
+      const userId = Math.random().toString(36).substr(2, 9);
+      const passwordHash = hashPassword(password);
+      
+      userStore.set(email, { id: userId, email, passwordHash });
+      
+      const token = generateJWT(userId, email);
 
-      res.json({ success: true, token, user: { id: user.id, email: user.email } });
-    } catch (err: any) {
-      res.status(500).json({ message: err.message });
+      return res.status(200).json({
+        success: true,
+        token,
+        user: { id: userId, email },
+      });
+    } catch (error) {
+      console.error("Signup error:", error);
+      return res.status(500).json({ message: "Signup failed" });
     }
   });
 
-  // LOGIN
-  app.post("/api/auth/login", async (req, res) => {
+  // LOGIN with JWT (in-memory)
+  app.post("/api/auth/login-jwt", async (req, res) => {
     try {
       const { email, password } = req.body;
 
@@ -52,19 +62,26 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         return res.status(400).json({ message: "Email and password required" });
       }
 
-      const user = await storage.getUserByEmail(email);
+      const user = userStore.get(email);
       if (!user) {
-        return res.status(400).json({ message: "Invalid credentials" });
+        return res.status(400).json({ message: "User not found" });
       }
 
-      if (!verifyPassword(password, user.passwordHash)) {
-        return res.status(400).json({ message: "Invalid credentials" });
+      const isValid = verifyPassword(password, user.passwordHash);
+      if (!isValid) {
+        return res.status(400).json({ message: "Invalid password" });
       }
 
       const token = generateJWT(user.id, email);
-      res.json({ success: true, token, user: { id: user.id, email: user.email } });
-    } catch (err: any) {
-      res.status(500).json({ message: err.message });
+
+      return res.status(200).json({
+        success: true,
+        token,
+        user: { id: user.id, email: user.email },
+      });
+    } catch (error) {
+      console.error("Login error:", error);
+      return res.status(500).json({ message: "Login failed" });
     }
   });
 
