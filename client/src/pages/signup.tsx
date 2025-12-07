@@ -40,16 +40,24 @@ export default function Signup() {
         body: JSON.stringify({ email, password }),
       });
 
-      const data = await res.json();
-
       if (!res.ok) {
+        const data = await res.json();
         throw new Error(data.message || "Signup failed");
       }
 
+      const data = await res.json();
+
+      // Store credentials immediately
       localStorage.setItem("authToken", data.token);
       localStorage.setItem("user", JSON.stringify(data.user));
-      toast({ title: "Success", description: "Account created successfully!" });
-      navigate("/dashboard");
+
+      // Show toast and navigate immediately
+      toast({ title: "Success", description: "Account created!" });
+
+      // Use setTimeout to ensure toast shows before navigation
+      setTimeout(() => {
+        navigate("/dashboard");
+      }, 100);
     } catch (err) {
       toast({
         title: "Error",
